@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../core/constants/app_colors.dart';
-import '../../core/widgets/custom_text_field.dart';
+import '../../../core/constants/app_colors.dart';
+import '../../../core/widgets/custom_text_field.dart';
 import '../data/auth_mock_service.dart';
 import 'otp_screen.dart';
 
