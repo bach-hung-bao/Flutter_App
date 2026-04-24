@@ -13,6 +13,10 @@ class CustomTextField extends StatelessWidget {
   final VoidCallback? onToggle;
   final TextInputType keyboardType;
   final Function(String)? onChanged;
+  
+  // CÁC THAM SỐ MỚI ĐÃ ĐƯỢC THÊM VÀO ĐÂY:
+  final TextInputAction? textInputAction;
+  final Function(String)? onSubmitted;
 
   const CustomTextField({
     super.key,
@@ -26,6 +30,9 @@ class CustomTextField extends StatelessWidget {
     this.onToggle,
     this.keyboardType = TextInputType.text,
     this.onChanged,
+    // THÊM VÀO CONSTRUCTOR:
+    this.textInputAction,
+    this.onSubmitted,
   });
 
   @override
@@ -34,10 +41,10 @@ class CustomTextField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          label, 
+          label,
           style: GoogleFonts.poppins(
-            fontSize: 13, 
-            fontWeight: FontWeight.w600, 
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
             color: Colors.black87,
           ),
         ),
@@ -47,6 +54,9 @@ class CustomTextField extends StatelessWidget {
           obscureText: obsecure,
           keyboardType: keyboardType,
           onChanged: onChanged,
+          // GẮN CÁC THAM SỐ MỚI VÀO ĐÂY:
+          textInputAction: textInputAction,
+          onSubmitted: onSubmitted,
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[400]),
@@ -54,9 +64,9 @@ class CustomTextField extends StatelessWidget {
             suffixIcon: isPassword
                 ? IconButton(
                     icon: Icon(
-                      obsecure ? Icons.visibility_off_outlined : Icons.visibility_outlined, 
+                      obsecure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
                       color: Colors.grey[500],
-                    ), 
+                    ),
                     onPressed: onToggle,
                   )
                 : null,
@@ -65,15 +75,15 @@ class CustomTextField extends StatelessWidget {
             fillColor: Colors.white,
             contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14), 
+              borderRadius: BorderRadius.circular(14),
               borderSide: BorderSide(color: Colors.grey.shade200),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14), 
+              borderRadius: BorderRadius.circular(14),
               borderSide: BorderSide(color: errorText != null ? Colors.red : Colors.grey.shade200),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14), 
+              borderRadius: BorderRadius.circular(14),
               borderSide: BorderSide(color: errorText != null ? Colors.red : AppColors.greenPrimary, width: 1.5),
             ),
           ),
