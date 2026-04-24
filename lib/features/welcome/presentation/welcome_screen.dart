@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:ui'; // BẮT BUỘC THÊM DÒNG NÀY: Để lấy cấu hình cho phép dùng chuột kéo trên Web
-import '../../auth/presentation/login_screen.dart'; 
+import '../../auth/presentation/login_screen.dart';
 import '../data/welcome_data.dart';
 
 class WelcomeScreen extends StatefulWidget {
@@ -13,7 +13,7 @@ class WelcomeScreen extends StatefulWidget {
 
 class _WelcomeScreenState extends State<WelcomeScreen> {
   final PageController _pageController = PageController();
-  int _currentPage = 0; 
+  int _currentPage = 0;
 
   @override
   void dispose() {
@@ -31,7 +31,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             behavior: ScrollConfiguration.of(context).copyWith(
               dragDevices: {
                 PointerDeviceKind.touch, // Cho phép vuốt trên điện thoại
-                PointerDeviceKind.mouse, // ĐÂY RỒI: Cho phép dùng chuột kéo trên Web
+                PointerDeviceKind
+                    .mouse, // ĐÂY RỒI: Cho phép dùng chuột kéo trên Web
               },
             ),
             child: PageView.builder(
@@ -60,11 +61,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black12,
-                    Colors.black54,
-                    Colors.black87,
-                  ],
+                  colors: [Colors.black12, Colors.black54, Colors.black87],
                   stops: [0.0, 0.5, 1.0],
                 ),
               ),
@@ -74,10 +71,13 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           // LỚP TRÊN CÙNG
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 24.0,
+                vertical: 20.0,
+              ),
               child: Column(
                 children: [
-                  const Spacer(), 
+                  const Spacer(),
 
                   AnimatedSwitcher(
                     duration: const Duration(milliseconds: 300),
@@ -89,9 +89,9 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                           height: 140,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: Colors.white.withOpacity(0.1),
+                            color: Colors.white.withValues(alpha: 0.1),
                             border: Border.all(
-                              color: Colors.white.withOpacity(0.3),
+                              color: Colors.white.withValues(alpha: 0.3),
                               width: 1,
                             ),
                           ),
@@ -120,7 +120,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                           ),
                         ),
                         const SizedBox(height: 40),
-                        
+
                         Text(
                           welcomeItems[_currentPage].title,
                           textAlign: TextAlign.center,
@@ -132,7 +132,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        
+
                         Text(
                           welcomeItems[_currentPage].description,
                           textAlign: TextAlign.center,
@@ -185,7 +185,10 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: List.generate(
                       welcomeItems.length,
-                      (index) => _buildDot(index: index, isActive: _currentPage == index),
+                      (index) => _buildDot(
+                        index: index,
+                        isActive: _currentPage == index,
+                      ),
                     ),
                   ),
 
