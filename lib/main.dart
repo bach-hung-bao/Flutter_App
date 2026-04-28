@@ -25,6 +25,9 @@ class WhiteHotelApp extends StatelessWidget {
         ),
       ),
       home: const AppGate(),
+      onUnknownRoute: (settings) {
+        return MaterialPageRoute(builder: (_) => const AppGate());
+      },
     );
   }
 }
