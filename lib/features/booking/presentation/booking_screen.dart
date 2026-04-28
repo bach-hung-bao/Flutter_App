@@ -1,15 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'dart:ui';
 
-import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_text_styles.dart';
 import '../../booking/domain/usecases/create_booking_usecase.dart';
+
+// ─── Palette (đồng bộ home) ────────────────────────────────────────────────
+const _kGreen = Color(0xFF1A8F5C);
+const _kGreenDark = Color(0xFF0F5C3A);
+const _kGreenAccent = Color(0xFF00D68F);
+const _kSurface = Color(0xFFF5F7F6);
+const _kCard = Colors.white;
+const _kTextPrimary = Color(0xFF1A2B24);
+const _kTextSec = Color(0xFF6B8070);
+const _kDivider = Color(0xFFEAEEEC);
 
 class BookingScreen extends StatefulWidget {
   final int hotelId;
   final String hotelName;
   final CreateBookingUseCase createBookingUseCase;
-  // roomId would be selected; for now default to 1 or can be passed
   final int? roomId;
 
   const BookingScreen({
@@ -24,7 +33,8 @@ class BookingScreen extends StatefulWidget {
   State<BookingScreen> createState() => _BookingScreenState();
 }
 
-class _BookingScreenState extends State<BookingScreen> {
+class _BookingScreenState extends State<BookingScreen>
+    with SingleTickerProviderStateMixin {
   DateTime? _checkIn;
   DateTime? _checkOut;
   int _guestCount = 1;
@@ -32,22 +42,29 @@ class _BookingScreenState extends State<BookingScreen> {
   final _noteCtrl = TextEditingController();
   bool _isSubmitting = false;
 
+  late AnimationController _fadeCtrl;
+
   final _paymentMethods = ['Cash', 'BankTransfer', 'Online'];
 
   int get _nights {
-    // 1. Nếu chưa chọn 1 trong 2 ngày thì trả về 0 luôn
     if (_checkIn == null || _checkOut == null) return 0;
-    
-    // 2. Nếu ngày Check-out trước ngày Check-in (lỗi logic người dùng) thì trả về 0
     if (_checkOut!.isBefore(_checkIn!)) return 0;
-    
-    // 3. Tính số đêm hợp lệ
     return _checkOut!.difference(_checkIn!).inDays;
   }
-  
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    )..forward();
+  }
+
   @override
   void dispose() {
     _noteCtrl.dispose();
+    _fadeCtrl.dispose();
     super.dispose();
   }
 
@@ -55,19 +72,27 @@ class _BookingScreenState extends State<BookingScreen> {
     final now = DateTime.now();
     final picked = await showDatePicker(
       context: context,
-      initialDate: isCheckIn ? now : (_checkIn ?? now).add(const Duration(days: 1)),
+      initialDate: isCheckIn
+          ? now
+          : (_checkIn ?? now).add(const Duration(days: 1)),
       firstDate: now,
       lastDate: now.add(const Duration(days: 365)),
       builder: (ctx, child) => Theme(
         data: Theme.of(ctx).copyWith(
-          colorScheme: const ColorScheme.light(primary: AppColors.greenPrimary),
+          colorScheme: const ColorScheme.light(
+            primary: _kGreen,
+            onPrimary: Colors.white,
+            surface: _kCard,
+          ),
+          textButtonTheme: TextButtonThemeData(
+            style: TextButton.styleFrom(foregroundColor: _kGreen),
+          ),
         ),
         child: child!,
       ),
     );
-    
     if (picked == null) return;
-    
+    HapticFeedback.selectionClick();
     setState(() {
       if (isCheckIn) {
         _checkIn = picked;
@@ -82,14 +107,14 @@ class _BookingScreenState extends State<BookingScreen> {
 
   Future<void> _submit() async {
     if (_checkIn == null || _checkOut == null) {
-      _snack('Vui lòng chọn ngày check-in và check-out', AppColors.warning);
+      _snack('Vui lòng chọn ngày check-in và check-out', Colors.orange);
       return;
     }
     if (_nights < 1) {
-      _snack('Check-out phải sau check-in ít nhất 1 ngày', AppColors.warning);
+      _snack('Check-out phải sau check-in ít nhất 1 ngày', Colors.orange);
       return;
     }
-
+    HapticFeedback.mediumImpact();
     setState(() => _isSubmitting = true);
     try {
       await widget.createBookingUseCase.execute(
@@ -102,255 +127,711 @@ class _BookingScreenState extends State<BookingScreen> {
         note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
       );
       if (mounted) {
-        _snack('Đặt phòng thành công! Chờ xác nhận.', AppColors.greenPrimary);
+        _snack('Đặt phòng thành công! Chờ xác nhận.', _kGreen);
         Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isSubmitting = false);
-        _snack('Lỗi: $e', AppColors.error);
+        _snack('Lỗi: $e', Colors.red);
       }
     }
   }
 
   void _snack(String msg, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg, style: GoogleFonts.poppins()), backgroundColor: color),
+      SnackBar(
+        content: Text(
+          msg,
+          style: GoogleFonts.dmSans(
+            color: Colors.white,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        margin: const EdgeInsets.all(16),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.scaffoldBg,
-      appBar: AppBar(
-        backgroundColor: AppColors.greenPrimary,
-        foregroundColor: Colors.white,
-        title: Text('Đặt phòng',
-            style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w700)),
-        elevation: 0,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          // Hotel name banner
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AppColors.greenSurface,
-              borderRadius: BorderRadius.circular(14),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        backgroundColor: _kSurface,
+        body: Column(
+          children: [
+            _buildHeader(),
+            Expanded(
+              child: FadeTransition(
+                opacity: _fadeCtrl,
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 20),
+                      _buildHotelBanner(),
+                      const SizedBox(height: 28),
+                      _buildSectionLabel(
+                        'Chọn ngày lưu trú',
+                        Icons.date_range_rounded,
+                      ),
+                      const SizedBox(height: 14),
+                      _buildDateRow(),
+                      if (_nights > 0) ...[
+                        const SizedBox(height: 12),
+                        _buildNightsBadge(),
+                      ],
+                      const SizedBox(height: 28),
+                      _buildSectionLabel(
+                        'Số lượng khách',
+                        Icons.people_alt_rounded,
+                      ),
+                      const SizedBox(height: 14),
+                      _buildGuestCounter(),
+                      const SizedBox(height: 28),
+                      _buildSectionLabel(
+                        'Phương thức thanh toán',
+                        Icons.payment_rounded,
+                      ),
+                      const SizedBox(height: 14),
+                      _buildPaymentMethods(),
+                      const SizedBox(height: 28),
+                      _buildSectionLabel(
+                        'Ghi chú (tuỳ chọn)',
+                        Icons.edit_note_rounded,
+                      ),
+                      const SizedBox(height: 14),
+                      _buildNoteField(),
+                      const SizedBox(height: 36),
+                      _buildSubmitButton(),
+                    ],
+                  ),
+                ),
+              ),
             ),
-            child: Row(children: [
-              const Icon(Icons.hotel, color: AppColors.greenPrimary),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(widget.hotelName,
-                    style: AppTextStyles.labelLarge, overflow: TextOverflow.ellipsis),
-              ),
-            ]),
-          ),
-          const SizedBox(height: 24),
-
-          // Dates
-          Text('Chọn ngày', style: AppTextStyles.h3),
-          const SizedBox(height: 12),
-          Row(children: [
-            Expanded(child: _DatePicker(
-              label: 'Check-in',
-              date: _checkIn,
-              icon: Icons.login_outlined,
-              onTap: () => _pickDate(true),
-            )),
-            const SizedBox(width: 12),
-            Expanded(child: _DatePicker(
-              label: 'Check-out',
-              date: _checkOut,
-              icon: Icons.logout_outlined,
-              onTap: () => _pickDate(false),
-            )),
-          ]),
-          if (_nights > 0) ...[
-            const SizedBox(height: 8),
-            Center(child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.greenPrimary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Text('$_nights đêm',
-                  style: AppTextStyles.labelLarge.copyWith(color: AppColors.greenPrimary)),
-            )),
           ],
-          const SizedBox(height: 24),
-
-          // Guest count
-          Text('Số khách', style: AppTextStyles.h3),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: AppColors.cardBg,
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
-            ),
-            child: Row(children: [
-              const Icon(Icons.people_outline, color: AppColors.brownAccent),
-              const SizedBox(width: 12),
-              Text('Số người', style: AppTextStyles.bodyMedium),
-              const Spacer(),
-              _Stepper(
-                value: _guestCount,
-                min: 1,
-                max: 10,
-                onChanged: (v) => setState(() => _guestCount = v),
-              ),
-            ]),
-          ),
-          const SizedBox(height: 24),
-
-          // Payment method
-          Text('Thanh toán', style: AppTextStyles.h3),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            children: _paymentMethods.map((m) => ChoiceChip(
-              label: Text(_payLabel(m), style: GoogleFonts.poppins(fontSize: 13)),
-              selected: _paymentMethod == m,
-              onSelected: (_) => setState(() => _paymentMethod = m),
-              selectedColor: AppColors.greenPrimary,
-              backgroundColor: AppColors.cardBg,
-              labelStyle: GoogleFonts.poppins(
-                color: _paymentMethod == m ? Colors.white : AppColors.textPrimary),
-            )).toList(),
-          ),
-          const SizedBox(height: 24),
-
-          // Note
-          Text('Ghi chú (tuỳ chọn)', style: AppTextStyles.h3),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _noteCtrl,
-            maxLines: 3,
-            decoration: InputDecoration(
-              hintText: 'Yêu cầu đặc biệt, giờ nhận phòng...',
-              hintStyle: GoogleFonts.poppins(color: AppColors.textHint, fontSize: 13),
-              filled: true,
-              fillColor: AppColors.cardBg,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: AppColors.divider),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: AppColors.greenPrimary, width: 2),
-              ),
-              contentPadding: const EdgeInsets.all(14),
-            ),
-          ),
-          const SizedBox(height: 36),
-
-          // Submit
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: ElevatedButton(
-              onPressed: _isSubmitting ? null : _submit,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.greenPrimary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              ),
-              child: _isSubmitting
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : Text('Xác nhận đặt phòng', style: AppTextStyles.button),
-            ),
-          ),
-        ]),
+        ),
       ),
     );
   }
 
-  String _payLabel(String m) {
-    switch (m) {
-      case 'Cash': return 'Tiền mặt';
-      case 'BankTransfer': return 'Chuyển khoản';
-      case 'Online': return 'Online';
-      default: return m;
-    }
+  // ── Header ─────────────────────────────────────────────────────────────
+  Widget _buildHeader() {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF0D6B42), _kGreen],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 4, 16, 20),
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                onPressed: () => Navigator.pop(context),
+              ),
+              Expanded(
+                child: Text(
+                  'Đặt phòng',
+                  style: GoogleFonts.playfairDisplay(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Hotel Banner ────────────────────────────────────────────────────────
+  Widget _buildHotelBanner() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            _kGreen.withValues(alpha: 0.08),
+            _kGreenAccent.withValues(alpha: 0.06),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _kGreen.withValues(alpha: 0.15)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [_kGreen, Color(0xFF23B97A)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(
+              Icons.hotel_rounded,
+              color: Colors.white,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Bạn đang đặt tại',
+                  style: GoogleFonts.dmSans(fontSize: 12, color: _kTextSec),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  widget.hotelName,
+                  style: GoogleFonts.playfairDisplay(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: _kTextPrimary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Section Label ────────────────────────────────────────────────────────
+  Widget _buildSectionLabel(String title, IconData icon) {
+    return Row(
+      children: [
+        Container(
+          width: 4,
+          height: 20,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [_kGreen, _kGreenAccent],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Icon(icon, size: 18, color: _kGreen),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: GoogleFonts.playfairDisplay(
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+            color: _kTextPrimary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Date Row ─────────────────────────────────────────────────────────────
+  Widget _buildDateRow() {
+    return Row(
+      children: [
+        Expanded(
+          child: _DateCard(
+            label: 'Check-in',
+            date: _checkIn,
+            icon: Icons.flight_land_rounded,
+            onTap: () => _pickDate(true),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: Column(
+            children: [
+              const Icon(Icons.arrow_forward_rounded, color: _kGreen, size: 18),
+            ],
+          ),
+        ),
+        Expanded(
+          child: _DateCard(
+            label: 'Check-out',
+            date: _checkOut,
+            icon: Icons.flight_takeoff_rounded,
+            onTap: () => _pickDate(false),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNightsBadge() {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [_kGreen, Color(0xFF23B97A)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(999),
+          boxShadow: [
+            BoxShadow(
+              color: _kGreen.withValues(alpha: 0.3),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.nights_stay_rounded,
+              color: Colors.white,
+              size: 16,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '$_nights đêm lưu trú',
+              style: GoogleFonts.dmSans(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Guest Counter ─────────────────────────────────────────────────────────
+  Widget _buildGuestCounter() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: _kGreen.withValues(alpha: 0.07),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: _kGreen.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.person_rounded, color: _kGreen, size: 20),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Số người',
+                  style: GoogleFonts.dmSans(fontSize: 12, color: _kTextSec),
+                ),
+                Text(
+                  '$_guestCount khách',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: _kTextPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          _GuestStepper(
+            value: _guestCount,
+            onChanged: (v) {
+              HapticFeedback.lightImpact();
+              setState(() => _guestCount = v);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Payment Methods ────────────────────────────────────────────────────────
+  Widget _buildPaymentMethods() {
+    final labels = {
+      'Cash': 'Tiền mặt',
+      'BankTransfer': 'Chuyển khoản',
+      'Online': 'Online',
+    };
+    final icons = {
+      'Cash': Icons.payments_rounded,
+      'BankTransfer': Icons.account_balance_rounded,
+      'Online': Icons.language_rounded,
+    };
+    return Row(
+      children: _paymentMethods.map((m) {
+        final selected = _paymentMethod == m;
+        return Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(right: m != _paymentMethods.last ? 10 : 0),
+            child: GestureDetector(
+              onTap: () {
+                HapticFeedback.selectionClick();
+                setState(() => _paymentMethod = m);
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                decoration: BoxDecoration(
+                  gradient: selected
+                      ? const LinearGradient(
+                          colors: [_kGreen, Color(0xFF23B97A)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        )
+                      : null,
+                  color: selected ? null : _kCard,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: selected ? Colors.transparent : _kDivider,
+                    width: 1.5,
+                  ),
+                  boxShadow: selected
+                      ? [
+                          BoxShadow(
+                            color: _kGreen.withValues(alpha: 0.3),
+                            blurRadius: 12,
+                            offset: const Offset(0, 5),
+                          ),
+                        ]
+                      : [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.04),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                ),
+                child: Column(
+                  children: [
+                    Icon(
+                      icons[m]!,
+                      color: selected ? Colors.white : _kGreen,
+                      size: 22,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      labels[m]!,
+                      style: GoogleFonts.dmSans(
+                        color: selected ? Colors.white : _kTextPrimary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  // ── Note Field ────────────────────────────────────────────────────────────
+  Widget _buildNoteField() {
+    return Container(
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: _kGreen.withValues(alpha: 0.06),
+            blurRadius: 14,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: TextField(
+        controller: _noteCtrl,
+        maxLines: 3,
+        style: GoogleFonts.dmSans(fontSize: 14, color: _kTextPrimary),
+        decoration: InputDecoration(
+          hintText: 'Yêu cầu đặc biệt, giờ nhận phòng, sở thích...',
+          hintStyle: GoogleFonts.dmSans(color: _kTextSec, fontSize: 13),
+          filled: false,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(20),
+            borderSide: const BorderSide(color: _kDivider, width: 1.5),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(20),
+            borderSide: const BorderSide(color: _kDivider, width: 1.5),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(20),
+            borderSide: const BorderSide(color: _kGreen, width: 2),
+          ),
+          contentPadding: const EdgeInsets.all(18),
+          prefixIcon: const Padding(
+            padding: EdgeInsets.only(left: 16, right: 8, top: 14),
+            child: Icon(Icons.edit_rounded, color: _kGreen, size: 20),
+          ),
+          prefixIconConstraints: const BoxConstraints(),
+        ),
+      ),
+    );
+  }
+
+  // ── Submit Button ──────────────────────────────────────────────────────────
+  Widget _buildSubmitButton() {
+    return Container(
+      width: double.infinity,
+      height: 58,
+      decoration: BoxDecoration(
+        gradient: _isSubmitting
+            ? null
+            : const LinearGradient(
+                colors: [_kGreenDark, _kGreen, Color(0xFF23B97A)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+        color: _isSubmitting ? _kDivider : null,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: _isSubmitting
+            ? []
+            : [
+                BoxShadow(
+                  color: _kGreen.withValues(alpha: 0.4),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+      ),
+      child: ElevatedButton(
+        onPressed: _isSubmitting ? null : _submit,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+        ),
+        child: _isSubmitting
+            ? const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  color: _kGreen,
+                  strokeWidth: 2.5,
+                ),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.check_circle_rounded, size: 20),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Xác nhận đặt phòng',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
   }
 }
 
-class _DatePicker extends StatelessWidget {
+// ════════════════════════════════════════════════════════════════════════════
+// DATE CARD
+// ════════════════════════════════════════════════════════════════════════════
+class _DateCard extends StatelessWidget {
   final String label;
   final DateTime? date;
   final IconData icon;
   final VoidCallback onTap;
-  const _DatePicker({required this.label, required this.date, required this.icon, required this.onTap});
+  const _DateCard({
+    required this.label,
+    required this.date,
+    required this.icon,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final hasDate = date != null;
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(14),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppColors.cardBg,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: date != null ? AppColors.greenPrimary : AppColors.divider, width: 1.5),
-          boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
-        ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: AppTextStyles.labelMedium),
-          const SizedBox(height: 6),
-          Row(children: [
-            Icon(icon, size: 18, color: AppColors.greenPrimary),
-            const SizedBox(width: 6),
-            Text(
-              date != null ? '${date!.day}/${date!.month}/${date!.year}' : 'Chọn',
-              style: AppTextStyles.bodyMedium.copyWith(
-                color: date != null ? AppColors.textPrimary : AppColors.textHint),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: hasDate ? _kGreen : _kDivider,
+            width: hasDate ? 2 : 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: hasDate
+                  ? _kGreen.withValues(alpha: 0.12)
+                  : Colors.black.withValues(alpha: 0.04),
+              blurRadius: 14,
+              offset: const Offset(0, 5),
             ),
-          ]),
-        ]),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: GoogleFonts.dmSans(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: hasDate ? _kGreen : _kTextSec,
+                letterSpacing: 0.5,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(icon, size: 16, color: _kGreen),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    hasDate
+                        ? '${date!.day}/${date!.month}/${date!.year}'
+                        : 'Chọn ngày',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 14,
+                      fontWeight: hasDate ? FontWeight.w700 : FontWeight.w400,
+                      color: hasDate ? _kTextPrimary : _kTextSec,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _Stepper extends StatelessWidget {
+// ════════════════════════════════════════════════════════════════════════════
+// GUEST STEPPER
+// ════════════════════════════════════════════════════════════════════════════
+class _GuestStepper extends StatelessWidget {
   final int value;
-  final int min;
-  final int max;
   final ValueChanged<int> onChanged;
-  const _Stepper({required this.value, required this.min, required this.max, required this.onChanged});
+  const _GuestStepper({required this.value, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
-    return Row(mainAxisSize: MainAxisSize.min, children: [
-      _Btn(Icons.remove, value > min ? () => onChanged(value - 1) : null),
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        child: Text('$value', style: AppTextStyles.h3),
-      ),
-      _Btn(Icons.add, value < max ? () => onChanged(value + 1) : null),
-    ]);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _StepBtn(
+          icon: Icons.remove_rounded,
+          enabled: value > 1,
+          onTap: () => onChanged(value - 1),
+        ),
+        SizedBox(
+          width: 40,
+          child: Text(
+            '$value',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.playfairDisplay(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: _kTextPrimary,
+            ),
+          ),
+        ),
+        _StepBtn(
+          icon: Icons.add_rounded,
+          enabled: value < 10,
+          onTap: () => onChanged(value + 1),
+        ),
+      ],
+    );
   }
 }
 
-class _Btn extends StatelessWidget {
+class _StepBtn extends StatelessWidget {
   final IconData icon;
-  final VoidCallback? onPressed;
-  const _Btn(this.icon, this.onPressed);
+  final bool enabled;
+  final VoidCallback onTap;
+  const _StepBtn({
+    required this.icon,
+    required this.enabled,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onPressed,
-      child: Container(
-        width: 32, height: 32,
+      onTap: enabled ? onTap : null,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        width: 36,
+        height: 36,
         decoration: BoxDecoration(
-          color: onPressed != null ? AppColors.greenPrimary : AppColors.divider,
+          gradient: enabled
+              ? const LinearGradient(
+                  colors: [_kGreen, Color(0xFF23B97A)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : null,
+          color: enabled ? null : _kDivider,
           shape: BoxShape.circle,
+          boxShadow: enabled
+              ? [
+                  BoxShadow(
+                    color: _kGreen.withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : [],
         ),
         child: Icon(icon, size: 18, color: Colors.white),
       ),

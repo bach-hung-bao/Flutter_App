@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../search/presentation/search_screen.dart';
+import '../../notification/presentation/notifications_screen.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/storage/auth_storage.dart';
@@ -9,7 +11,6 @@ import '../domain/entities/province_entity.dart';
 import '../domain/usecases/get_home_recommendations_usecase.dart';
 import '../domain/usecases/get_provinces_usecase.dart';
 import '../../hotel/presentation/hotel_detail_screen.dart';
-
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -42,20 +43,23 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadHomeData() async {
-    setState(() { _isLoading = true; _error = null; });
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
     try {
       final session = await _authStorage.getSession();
       final provinces = await _getProvinces.execute(pageSize: 8);
-      
+
       // Mặc định _selectedProvince = null, gọi API lấy "Tất cả"
       final hotels = await _getRecommendations.execute(
         topK: 10,
         province: _selectedProvince?.name,
         accessToken: session?.accessToken,
       );
-      
+
       if (!mounted) return;
-      
+
       setState(() {
         _fullName = session?.fullName ?? 'Bạn';
         _provinces = provinces;
@@ -65,12 +69,19 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() { _isLoading = false; _error = e.toString(); });
+      setState(() {
+        _isLoading = false;
+        _error = e.toString();
+      });
     }
   }
 
   Future<void> _refreshHotels({ProvinceEntity? province}) async {
-    setState(() { _selectedProvince = province; _isRefreshing = true; _error = null; });
+    setState(() {
+      _selectedProvince = province;
+      _isRefreshing = true;
+      _error = null;
+    });
     try {
       final session = await _authStorage.getSession();
       final hotels = await _getRecommendations.execute(
@@ -79,10 +90,16 @@ class _HomeScreenState extends State<HomeScreen> {
         accessToken: session?.accessToken,
       );
       if (!mounted) return;
-      setState(() { _hotels = hotels; _isRefreshing = false; });
+      setState(() {
+        _hotels = hotels;
+        _isRefreshing = false;
+      });
     } catch (e) {
       if (!mounted) return;
-      setState(() { _isRefreshing = false; _error = e.toString(); });
+      setState(() {
+        _isRefreshing = false;
+        _error = e.toString();
+      });
     }
   }
 
@@ -96,6 +113,7 @@ class _HomeScreenState extends State<HomeScreen> {
           slivers: [
             SliverToBoxAdapter(child: _buildBanner()),
             SliverToBoxAdapter(child: _buildProvinceSection()),
+            SliverToBoxAdapter(child: _buildIntroSection()),
             SliverToBoxAdapter(child: _buildHotelsHeader()),
             if (_isLoading)
               const SliverFillRemaining(
@@ -140,82 +158,174 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Xin chào, $_fullName 👋',
-                  style: GoogleFonts.poppins(
-                      color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 4),
-              Text('Khám phá khách sạn tuyệt vời hôm nay',
-                  style: GoogleFonts.poppins(color: Colors.white70, fontSize: 13)),
-            ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Xin chào, $_fullName 👋',
+                      style: GoogleFonts.poppins(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Khám phá khách sạn tuyệt vời hôm nay',
+                      style: GoogleFonts.poppins(
+                        color: Colors.white70,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.search, color: Colors.white),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SearchScreen()),
+                ),
+                tooltip: 'Tìm kiếm',
+              ),
+              IconButton(
+                icon: const Icon(
+                  Icons.notifications_outlined,
+                  color: Colors.white,
+                ),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const NotificationsScreen(),
+                  ),
+                ),
+                tooltip: 'Thông báo',
+              ),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.hotel, color: Colors.white, size: 28),
+              ),
+            ],
           ),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.hotel, color: Colors.white, size: 28),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 8,
+            children: [
+              _Chip(Icons.home_work_outlined, '${_hotels.length} gợi ý'),
+              _Chip(Icons.public_outlined, '${_provinces.length} tỉnh'),
+              _Chip(Icons.verified_outlined, 'AI powered'),
+            ],
           ),
-        ]),
-        const SizedBox(height: 16),
-        Wrap(spacing: 8, children: [
-          _Chip(Icons.home_work_outlined, '${_hotels.length} gợi ý'),
-          _Chip(Icons.public_outlined, '${_provinces.length} tỉnh'),
-          _Chip(Icons.verified_outlined, 'AI powered'),
-        ]),
-      ]),
+        ],
+      ),
     );
   }
 
   Widget _buildProvinceSection() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Chọn điểm đến', style: AppTextStyles.h3),
-        const SizedBox(height: 12),
-        SizedBox(
-          height: 40,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: _provinces.length + 1,
-            separatorBuilder: (_, __) => const SizedBox(width: 8),
-            itemBuilder: (_, index) {
-              if (index == 0) {
-                final isSelected = _selectedProvince == null;
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Chọn điểm đến', style: AppTextStyles.h3),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 40,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _provinces.length + 1,
+              separatorBuilder: (context, index) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                if (index == 0) {
+                  final isSelected = _selectedProvince == null;
+                  return _ProvinceChip(
+                    label: 'Tất cả',
+                    isSelected: isSelected,
+                    onTap: () => _refreshHotels(province: null),
+                  );
+                }
+                final p = _provinces[index - 1];
                 return _ProvinceChip(
-                  label: 'Tất cả',
-                  isSelected: isSelected,
-                  onTap: () => _refreshHotels(province: null),
+                  label: p.name,
+                  isSelected: _selectedProvince?.id == p.id,
+                  onTap: () => _refreshHotels(province: p),
                 );
-              }
-              final p = _provinces[index - 1];
-              return _ProvinceChip(
-                label: p.name,
-                isSelected: _selectedProvince?.id == p.id,
-                onTap: () => _refreshHotels(province: p),
-              );
-            },
+              },
+            ),
           ),
-        ),
-      ]),
+        ],
+      ),
+    );
+  }
+  Widget _buildIntroSection() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Về White Hotel', style: AppTextStyles.h3),
+          const SizedBox(height: 8),
+          Text(
+            'Trải nghiệm không gian nghỉ dưỡng đẳng cấp, sang trọng với các dịch vụ tuyệt vời. Sự lựa chọn hoàn hảo cho kỳ nghỉ của bạn.',
+            style: AppTextStyles.bodyMedium,
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 160,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              children: [
+                _buildIntroImage('Assets/images/splash_bg.png'),
+                const SizedBox(width: 12),
+                _buildIntroImage('Assets/images/splash_bg1.png'),
+                const SizedBox(width: 12),
+                _buildIntroImage('Assets/images/splash_bg2.png'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIntroImage(String path) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: Image.asset(
+        path,
+        width: 240,
+        height: 160,
+        fit: BoxFit.cover,
+      ),
     );
   }
 
   Widget _buildHotelsHeader() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
-      child: Row(children: [
-        Text('Gợi ý cho bạn', style: AppTextStyles.h3),
-        const Spacer(),
-        if (_isRefreshing)
-          const SizedBox(
-              width: 18, height: 18,
-              child: CircularProgressIndicator(strokeWidth: 2)),
-      ]),
+      child: Row(
+        children: [
+          Text('Gợi ý cho bạn', style: AppTextStyles.h3),
+          const Spacer(),
+          if (_isRefreshing)
+            const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+        ],
+      ),
     );
   }
 
@@ -227,22 +337,33 @@ class _HomeScreenState extends State<HomeScreen> {
         color: AppColors.error.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(14),
       ),
-      child: Row(children: [
-        const Icon(Icons.error_outline, color: AppColors.error),
-        const SizedBox(width: 10),
-        Expanded(child: Text('Không tải được dữ liệu', style: AppTextStyles.bodyMedium)),
-        TextButton(onPressed: _loadHomeData, child: const Text('Thử lại')),
-      ]),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, color: AppColors.error),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Không tải được dữ liệu',
+              style: AppTextStyles.bodyMedium,
+            ),
+          ),
+          TextButton(onPressed: _loadHomeData, child: const Text('Thử lại')),
+        ],
+      ),
     ),
   );
 
   Widget _buildEmpty() => Padding(
     padding: const EdgeInsets.all(40),
-    child: Center(child: Column(children: [
-      Icon(Icons.hotel_outlined, size: 72, color: AppColors.greenLight),
-      const SizedBox(height: 16),
-      Text('Chưa có gợi ý nào', style: AppTextStyles.bodyMedium),
-    ])),
+    child: Center(
+      child: Column(
+        children: [
+          Icon(Icons.hotel_outlined, size: 72, color: AppColors.greenLight),
+          const SizedBox(height: 16),
+          Text('Chưa có gợi ý nào', style: AppTextStyles.bodyMedium),
+        ],
+      ),
+    ),
   );
 
   Widget _buildHotelCard(HotelRecommendationEntity hotel) {
@@ -250,10 +371,8 @@ class _HomeScreenState extends State<HomeScreen> {
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => HotelDetailScreen(
-            hotelId: hotel.hotelId,
-            hotelName: hotel.name,
-          ),
+          builder: (_) =>
+              HotelDetailScreen(hotelId: hotel.hotelId, hotelName: hotel.name),
         ),
       ),
       child: Container(
@@ -261,65 +380,114 @@ class _HomeScreenState extends State<HomeScreen> {
         decoration: BoxDecoration(
           color: AppColors.cardBg,
           borderRadius: BorderRadius.circular(18),
-          boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 12, offset: Offset(0, 4))],
-        ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
-            child: SizedBox(
-              height: 160,
-              width: double.infinity,
-              child: hotel.imageUrl != null && hotel.imageUrl!.isNotEmpty
-                  ? Image.network(hotel.imageUrl!, fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _imageFallback())
-                  : _imageFallback(),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 12,
+              offset: Offset(0, 4),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(hotel.name, style: AppTextStyles.h3, maxLines: 1, overflow: TextOverflow.ellipsis),
-              const SizedBox(height: 4),
-              if (hotel.province != null)
-                Row(children: [
-                  const Icon(Icons.location_on_outlined, size: 14, color: AppColors.brownLight),
-                  const SizedBox(width: 4),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(18),
+              ),
+              child: SizedBox(
+                height: 160,
+                width: double.infinity,
+                child: hotel.imageUrl != null && hotel.imageUrl!.isNotEmpty
+                    ? Image.network(
+                        hotel.imageUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => _imageFallback(),
+                      )
+                    : _imageFallback(),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    '${hotel.ward ?? ''}${hotel.ward != null && hotel.province != null ? ', ' : ''}${hotel.province ?? ''}',
-                    style: AppTextStyles.bodySmall,
+                    hotel.name,
+                    style: AppTextStyles.h3,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ]),
-              const SizedBox(height: 10),
-              Row(children: [
-                const Icon(Icons.star_rounded, color: Colors.amber, size: 18),
-                const SizedBox(width: 4),
-                Text((hotel.averageRating ?? 0).toStringAsFixed(1),
-                    style: AppTextStyles.labelLarge),
-                const SizedBox(width: 16),
-                const Icon(Icons.meeting_room_outlined, size: 16, color: AppColors.brownLight),
-                const SizedBox(width: 4),
-                Text('${hotel.roomCount} phòng', style: AppTextStyles.bodySmall),
-                const Spacer(),
-                if (hotel.avgRoomPrice != null)
-                  Text(
-                    '${_money(hotel.avgRoomPrice!)} đ',
-                    style: AppTextStyles.price.copyWith(fontSize: 14),
+                  const SizedBox(height: 4),
+                  if (hotel.province != null)
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.location_on_outlined,
+                          size: 14,
+                          color: AppColors.brownLight,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${hotel.ward ?? ''}${hotel.ward != null && hotel.province != null ? ', ' : ''}${hotel.province ?? ''}',
+                          style: AppTextStyles.bodySmall,
+                        ),
+                      ],
+                    ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.star_rounded,
+                        color: Colors.amber,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        (hotel.averageRating ?? 0).toStringAsFixed(1),
+                        style: AppTextStyles.labelLarge,
+                      ),
+                      const SizedBox(width: 16),
+                      const Icon(
+                        Icons.meeting_room_outlined,
+                        size: 16,
+                        color: AppColors.brownLight,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${hotel.roomCount} phòng',
+                        style: AppTextStyles.bodySmall,
+                      ),
+                      const Spacer(),
+                      if (hotel.avgRoomPrice != null)
+                        Text(
+                          '${_money(hotel.avgRoomPrice!)} đ',
+                          style: AppTextStyles.price.copyWith(fontSize: 14),
+                        ),
+                    ],
                   ),
-              ]),
-            ]),
-          ),
-        ]),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _imageFallback() => Container(
     color: AppColors.greenSurface,
-    child: const Center(child: Icon(Icons.hotel, size: 52, color: AppColors.greenPrimary)),
+    child: const Center(
+      child: Icon(Icons.hotel, size: 52, color: AppColors.greenPrimary),
+    ),
   );
 
-  String _money(double v) => v.toStringAsFixed(0).replaceAllMapped(
-    RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.');
+  String _money(double v) => v
+      .toStringAsFixed(0)
+      .replaceAllMapped(
+        RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+        (m) => '${m[1]}.',
+      );
 }
 
 class _Chip extends StatelessWidget {
@@ -336,12 +504,21 @@ class _Chip extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 14, color: Colors.white),
-        const SizedBox(width: 5),
-        Text(label,
-            style: GoogleFonts.poppins(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
-      ]),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: Colors.white),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -350,7 +527,11 @@ class _ProvinceChip extends StatelessWidget {
   final String label;
   final bool isSelected;
   final VoidCallback onTap;
-  const _ProvinceChip({required this.label, required this.isSelected, required this.onTap});
+  const _ProvinceChip({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -363,7 +544,12 @@ class _ProvinceChip extends StatelessWidget {
           color: isSelected ? AppColors.greenPrimary : AppColors.cardBg,
           borderRadius: BorderRadius.circular(999),
           boxShadow: isSelected
-              ? [BoxShadow(color: AppColors.greenPrimary.withValues(alpha: 0.3), blurRadius: 8)]
+              ? [
+                  BoxShadow(
+                    color: AppColors.greenPrimary.withValues(alpha: 0.3),
+                    blurRadius: 8,
+                  ),
+                ]
               : [const BoxShadow(color: Colors.black12, blurRadius: 4)],
         ),
         child: Text(
