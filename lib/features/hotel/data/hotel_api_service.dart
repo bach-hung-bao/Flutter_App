@@ -14,7 +14,7 @@ class HotelApiService implements HotelRepository {
   Future<HotelEntity?> getById(int id) async {
     final token = await _authStorage.getAccessToken();
     final response = await _client.get(
-      '/api/hotels/$id',
+      '/api/hotels/$id/with-location',
       accessToken: token,
     );
     final data = response['data'];

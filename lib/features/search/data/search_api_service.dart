@@ -45,4 +45,25 @@ class SearchApiService implements SearchRepository {
         .map(HotelModel.fromJson)
         .toList();
   }
+
+  Future<List<HotelEntity>> getFeaturedHotels({int pageSize = 8}) async {
+    final response = await _client.get(
+      '/api/hotels/all-with-province',
+      query: {'pageIndex': 1, 'pageSize': pageSize},
+    );
+
+    final data = response['data'];
+    final list = _extractList(data);
+    return list
+        .whereType<Map<String, dynamic>>()
+        .map(HotelModel.fromJson)
+        .toList();
+  }
+
+  List _extractList(dynamic data) {
+    if (data is List) return data;
+    if (data is Map && data['items'] is List) return data['items'] as List;
+    if (data is Map && data['data'] is List) return data['data'] as List;
+    return [];
+  }
 }

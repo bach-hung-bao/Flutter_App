@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../../core/network/api_client.dart';
 import '../../favorite/data/favorite_api_service.dart';
 import '../../favorite/domain/usecases/get_favorites_usecase.dart';
 import '../../favorite/domain/usecases/toggle_favorite_usecase.dart';
@@ -21,6 +22,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
   bool _isLoading = true;
   String? _error;
+  bool _authEmpty = false;
   List<HotelEntity> _favorites = [];
 
   @override
@@ -36,6 +38,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     setState(() {
       _isLoading = true;
       _error = null;
+      _authEmpty = false;
     });
     try {
       final items = await _getFavorites.execute();
@@ -47,9 +50,12 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       }
     } catch (e) {
       if (mounted) {
+        final isAuthError =
+            e is ApiException && (e.statusCode == 401 || e.statusCode == 403);
         setState(() {
           _isLoading = false;
-          _error = e.toString();
+          _authEmpty = isAuthError;
+          _error = isAuthError ? null : e.toString();
         });
       }
     }
@@ -121,162 +127,171 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
               child: CircularProgressIndicator(color: AppColors.greenMedium),
             )
           : _error != null
-              ? _buildError()
-              : _favorites.isEmpty
-                  ? _buildEmpty(context)
-                  : RefreshIndicator(
-                      color: AppColors.greenMedium,
-                      onRefresh: _load,
-                      child: GridView.builder(
-                        physics: const BouncingScrollPhysics(
-                          parent: AlwaysScrollableScrollPhysics(),
-                        ),
-                        padding: const EdgeInsets.all(16),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          crossAxisSpacing: 16,
-                          mainAxisSpacing: 16,
-                          childAspectRatio: 0.72,
-                        ),
-                        itemCount: _favorites.length,
-                        itemBuilder: (_, i) => _HotelFavCard(
-                          hotel: _favorites[i],
-                          onRemove: () => _toggle(_favorites[i].id),
-                        ),
-                      ),
-                    ),
+          ? _buildError()
+          : _favorites.isEmpty || _authEmpty
+          ? _buildEmpty(context)
+          : RefreshIndicator(
+              color: AppColors.greenMedium,
+              onRefresh: _load,
+              child: GridView.builder(
+                physics: const BouncingScrollPhysics(
+                  parent: AlwaysScrollableScrollPhysics(),
+                ),
+                padding: const EdgeInsets.all(16),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
+                  childAspectRatio: 0.72,
+                ),
+                itemCount: _favorites.length,
+                itemBuilder: (_, i) => _HotelFavCard(
+                  hotel: _favorites[i],
+                  onRemove: () => _toggle(_favorites[i].id),
+                ),
+              ),
+            ),
     );
   }
 
   Widget _buildError() => Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.redAccent.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.wifi_off_rounded, size: 48, color: Colors.redAccent),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Lỗi kết nối',
-              style: GoogleFonts.playfairDisplay(
-                fontSize: 22,
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF172B24),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Không thể tải dữ liệu, vui lòng thử lại.',
-              style: GoogleFonts.dmSans(fontSize: 15, color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.greenMedium,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-              ),
-              onPressed: _load,
-              child: Text(
-                'Thử lại',
-                style: GoogleFonts.dmSans(color: Colors.white, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
-        ),
-      );
-
-  Widget _buildEmpty(BuildContext context) => Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Khối Icon trái tim bo tròn hiện đại
-              Container(
-                width: 140,
-                height: 140,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.greenMedium.withValues(alpha: 0.08),
-                ),
-                child: Center(
-                  child: Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: AppColors.greenMedium.withValues(alpha: 0.15),
-                    ),
-                    child: const Icon(
-                      Icons.favorite_border_rounded,
-                      size: 56,
-                      color: AppColors.greenMedium,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 32),
-              Text(
-                'Chưa có yêu thích nào',
-                style: GoogleFonts.playfairDisplay(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFF172B24),
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Những khách sạn bạn yêu thích sẽ xuất hiện ở đây. Hãy khám phá và lưu lại những địa điểm tuyệt vời nhé!',
-                style: GoogleFonts.dmSans(
-                  fontSize: 15,
-                  color: const Color(0xFF6B7B75),
-                  height: 1.5,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 40),
-              // Nút Call to Action
-              SizedBox(
-                width: double.infinity,
-                height: 54,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.greenMedium,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18), // Bo góc mượt
-                    ),
-                  ),
-                  onPressed: () {
-                    // Chuyển hướng về trang chủ
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(builder: (_) => const MainNavScreen()),
-                      (route) => false,
-                    );
-                  },
-                  child: Text(
-                    'Khám phá ngay',
-                    style: GoogleFonts.dmSans(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.2,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 60), // Nâng content lên trên một chút
-            ],
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.redAccent.withValues(alpha: 0.1),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.wifi_off_rounded,
+            size: 48,
+            color: Colors.redAccent,
           ),
         ),
-      );
+        const SizedBox(height: 16),
+        Text(
+          'Lỗi kết nối',
+          style: GoogleFonts.playfairDisplay(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            color: const Color(0xFF172B24),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Không thể tải dữ liệu, vui lòng thử lại.',
+          style: GoogleFonts.dmSans(fontSize: 15, color: Colors.grey[600]),
+        ),
+        const SizedBox(height: 24),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.greenMedium,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+          ),
+          onPressed: _load,
+          child: Text(
+            'Thử lại',
+            style: GoogleFonts.dmSans(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _buildEmpty(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Khối Icon trái tim bo tròn hiện đại
+          Container(
+            width: 140,
+            height: 140,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.greenMedium.withValues(alpha: 0.08),
+            ),
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.greenMedium.withValues(alpha: 0.15),
+                ),
+                child: const Icon(
+                  Icons.favorite_border_rounded,
+                  size: 56,
+                  color: AppColors.greenMedium,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 32),
+          Text(
+            'Hiện tại bạn chưa yêu thích cái nào',
+            style: GoogleFonts.playfairDisplay(
+              fontSize: 26,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF172B24),
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Những khách sạn bạn yêu thích sẽ xuất hiện ở đây. Hãy khám phá và lưu lại những địa điểm tuyệt vời nhé!',
+            style: GoogleFonts.dmSans(
+              fontSize: 15,
+              color: const Color(0xFF6B7B75),
+              height: 1.5,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 40),
+          // Nút Call to Action
+          SizedBox(
+            width: double.infinity,
+            height: 54,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.greenMedium,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18), // Bo góc mượt
+                ),
+              ),
+              onPressed: () {
+                // Chuyển hướng về trang chủ
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (_) => const MainNavScreen()),
+                  (route) => false,
+                );
+              },
+              child: Text(
+                'Khám phá ngay',
+                style: GoogleFonts.dmSans(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 60), // Nâng content lên trên một chút
+        ],
+      ),
+    ),
+  );
 }
 
 class _HotelFavCard extends StatelessWidget {

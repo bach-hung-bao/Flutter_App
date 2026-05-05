@@ -21,15 +21,47 @@ class _SearchScreenState extends State<SearchScreen> {
   bool _isLoading = false;
   String _error = '';
   List<HotelEntity> _results = [];
+  bool _isFeaturedLoading = true;
+  String _featuredError = '';
+  List<HotelEntity> _featured = [];
 
   // Chế độ tìm kiếm (0 = Theo tên, 1 = Theo tỉnh/thành phố)
   int _searchMode = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFeatured();
+  }
 
   @override
   void dispose() {
     _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadFeatured() async {
+    setState(() {
+      _isFeaturedLoading = true;
+      _featuredError = '';
+    });
+    try {
+      final items = await _apiService.getFeaturedHotels(pageSize: 8);
+      if (mounted) {
+        setState(() {
+          _featured = items;
+          _isFeaturedLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isFeaturedLoading = false;
+          _featuredError = e.toString();
+        });
+      }
+    }
   }
 
   void _onSearchChanged(String query) {
@@ -44,7 +76,14 @@ class _SearchScreenState extends State<SearchScreen> {
       return;
     }
 
-    _debounce = Timer(const Duration(milliseconds: 600), () {
+    if (mounted) {
+      setState(() {
+        _results = _filterFeatured(query);
+        _error = '';
+      });
+    }
+
+    _debounce = Timer(const Duration(milliseconds: 250), () {
       _performSearch(query.trim());
     });
   }
@@ -59,7 +98,10 @@ class _SearchScreenState extends State<SearchScreen> {
           ? await _apiService.searchHotelsByName(query)
           : await _apiService.searchHotelsByProvince(query);
 
-      if (mounted) setState(() => _results = items);
+      if (mounted) {
+        final merged = items.isNotEmpty ? items : _filterFeatured(query);
+        setState(() => _results = merged);
+      }
     } catch (e) {
       // 400 Bad Request cho by-province hoặc hotelName rỗng.
       if (mounted) {
@@ -72,6 +114,15 @@ class _SearchScreenState extends State<SearchScreen> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  List<HotelEntity> _filterFeatured(String query) {
+    final normalized = query.trim().toLowerCase();
+    if (normalized.isEmpty) return [];
+    return _featured.where((h) {
+      final name = h.name.toLowerCase();
+      return name.startsWith(normalized) || name.contains(normalized);
+    }).toList();
   }
 
   void _toggleSearchMode(int mode) {
@@ -123,62 +174,98 @@ class _SearchScreenState extends State<SearchScreen> {
       body: Column(
         children: [
           _buildSearchHeader(),
-          Expanded(
-            child: _isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF1A8F5C)),
-                  )
-                : _error.isNotEmpty
-                ? Center(
-                    child: Text(
-                      _error,
-                      style: GoogleFonts.dmSans(
-                        color: Colors.redAccent,
-                        fontSize: 15,
-                      ),
-                    ),
-                  )
-                : _results.isEmpty && _searchController.text.trim().isNotEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.search_off_rounded,
-                          size: 60,
-                          color: Color(0xFFD1E5D9),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Không tìm thấy khách sạn nào',
-                          style: GoogleFonts.dmSans(
-                            fontSize: 16,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : _results.isEmpty
-                ? Center(
-                    child: Text(
-                      'Nhập tên khách sạn hoặc tỉnh thành để bắt đầu tìm kiếm.',
-                      style: GoogleFonts.dmSans(
-                        color: Colors.grey,
-                        fontSize: 14,
-                      ),
-                    ),
-                  )
-                : ListView.separated(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _results.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 16),
-                    itemBuilder: (_, index) =>
-                        _buildHotelCard(context, _results[index]),
-                  ),
-          ),
+          Expanded(child: _buildContent()),
         ],
       ),
+    );
+  }
+
+  Widget _buildContent() {
+    final hasQuery = _searchController.text.trim().isNotEmpty;
+
+    if (hasQuery) {
+      if (_isLoading) {
+        return const Center(
+          child: CircularProgressIndicator(color: Color(0xFF1A8F5C)),
+        );
+      }
+      if (_error.isNotEmpty) {
+        return Center(
+          child: Text(
+            _error,
+            style: GoogleFonts.dmSans(color: Colors.redAccent, fontSize: 15),
+          ),
+        );
+      }
+      if (_results.isEmpty) {
+        return Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.search_off_rounded,
+                size: 60,
+                color: Color(0xFFD1E5D9),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Không tìm thấy khách sạn nào',
+                style: GoogleFonts.dmSans(fontSize: 16, color: Colors.grey),
+              ),
+            ],
+          ),
+        );
+      }
+
+      return ListView.separated(
+        padding: const EdgeInsets.all(16),
+        itemCount: _results.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 16),
+        itemBuilder: (_, index) => _buildHotelCard(context, _results[index]),
+      );
+    }
+
+    if (_isFeaturedLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF1A8F5C)),
+      );
+    }
+
+    if (_featuredError.isNotEmpty) {
+      return Center(
+        child: Text(
+          'Không tải được khách sạn nổi bật.',
+          style: GoogleFonts.dmSans(color: Colors.grey, fontSize: 14),
+        ),
+      );
+    }
+
+    if (_featured.isEmpty) {
+      return Center(
+        child: Text(
+          'Nhập tên khách sạn hoặc tỉnh thành để bắt đầu tìm kiếm.',
+          style: GoogleFonts.dmSans(color: Colors.grey, fontSize: 14),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      itemCount: _featured.length + 1,
+      separatorBuilder: (_, __) => const SizedBox(height: 16),
+      itemBuilder: (context, index) {
+        if (index == 0) {
+          return Text(
+            'Khách sạn nổi bật',
+            style: GoogleFonts.playfairDisplay(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF1A2B24),
+            ),
+          );
+        }
+        return _buildHotelCard(context, _featured[index - 1]);
+      },
     );
   }
 
@@ -259,7 +346,8 @@ class _SearchScreenState extends State<SearchScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => HotelDetailScreen(hotelId: hotel.id, hotelName: hotel.name),
+            builder: (_) =>
+                HotelDetailScreen(hotelId: hotel.id, hotelName: hotel.name),
           ),
         );
       },

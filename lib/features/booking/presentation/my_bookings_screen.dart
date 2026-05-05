@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../../core/network/api_client.dart';
 import '../../booking/data/booking_api_service.dart';
 import '../../booking/domain/entities/booking_entity.dart';
 import '../../booking/domain/usecases/get_my_bookings_usecase.dart';
@@ -35,6 +36,7 @@ class _MyBookingsScreenState extends State<MyBookingsScreen>
 
   bool _isLoading = true;
   String? _error;
+  bool _authEmpty = false;
   List<BookingEntity> _all = [];
 
   final _tabs = const [
@@ -65,6 +67,7 @@ class _MyBookingsScreenState extends State<MyBookingsScreen>
     setState(() {
       _isLoading = true;
       _error = null;
+      _authEmpty = false;
     });
     try {
       final (items, _) = await _getMyBookings.execute(pageSize: 50);
@@ -76,9 +79,12 @@ class _MyBookingsScreenState extends State<MyBookingsScreen>
       }
     } catch (e) {
       if (mounted) {
+        final isAuthError =
+            e is ApiException && (e.statusCode == 401 || e.statusCode == 403);
         setState(() {
           _isLoading = false;
-          _error = e.toString();
+          _authEmpty = isAuthError;
+          _error = isAuthError ? null : e.toString();
         });
       }
     }
@@ -345,7 +351,8 @@ class _MyBookingsScreenState extends State<MyBookingsScreen>
                   color: AppColors.greenMedium.withValues(alpha: 0.15),
                 ),
                 child: const Icon(
-                  Icons.receipt_long_rounded, // Đổi icon sang dạng hóa đơn/booking
+                  Icons
+                      .receipt_long_rounded, // Đổi icon sang dạng hóa đơn/booking
                   size: 56,
                   color: AppColors.greenMedium,
                 ),
@@ -354,7 +361,7 @@ class _MyBookingsScreenState extends State<MyBookingsScreen>
           ),
           const SizedBox(height: 32),
           Text(
-            'Chưa có đặt phòng nào',
+            'Hiện tại chưa có phòng nào được đặt',
             style: GoogleFonts.playfairDisplay(
               fontSize: 26,
               fontWeight: FontWeight.w700,
@@ -420,7 +427,8 @@ class _MyBookingsScreenState extends State<MyBookingsScreen>
       color: _kGreen,
       child: ListView.builder(
         physics: const BouncingScrollPhysics(
-          parent: AlwaysScrollableScrollPhysics(), // Để vuốt refresh hoạt động khi list rỗng
+          parent:
+              AlwaysScrollableScrollPhysics(), // Để vuốt refresh hoạt động khi list rỗng
         ),
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
         itemCount: items.length,
