@@ -8,7 +8,9 @@ class HotelEntity {
   final String? phone;
   final String? description;
   final int status; // 0=inactive, 1=active
+  final bool isDeleted;
   final DateTime createdAt;
+  final DateTime? updatedAt;
 
   const HotelEntity({
     required this.id,
@@ -19,7 +21,9 @@ class HotelEntity {
     this.phone,
     this.description,
     required this.status,
+    required this.isDeleted,
     required this.createdAt,
+    this.updatedAt,
   });
 
   bool get isActive => status == 1;

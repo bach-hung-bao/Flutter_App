@@ -12,6 +12,8 @@ class CreateBookingUseCase {
     required int guestCount,
     required double paidAmount,
     String? paymentMethod,
+    String? transactionCode,
+    String? paymentNote,
     String? note,
   }) {
     return _repository.createRequest(
@@ -21,6 +23,8 @@ class CreateBookingUseCase {
       guestCount: guestCount,
       paidAmount: paidAmount,
       paymentMethod: paymentMethod,
+      transactionCode: transactionCode,
+      paymentNote: paymentNote,
       note: note,
     );
   }

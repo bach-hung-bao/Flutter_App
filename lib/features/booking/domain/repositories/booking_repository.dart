@@ -1,4 +1,6 @@
 import '../entities/booking_entity.dart';
+import '../entities/room_entity.dart';
+import '../entities/time_slot_entity.dart';
 
 abstract class BookingRepository {
   Future<BookingEntity> createRequest({
@@ -8,6 +10,8 @@ abstract class BookingRepository {
     required int guestCount,
     required double paidAmount,
     String? paymentMethod,
+    String? transactionCode,
+    String? paymentNote,
     String? note,
   });
 
@@ -17,4 +21,6 @@ abstract class BookingRepository {
   });
 
   Future<BookingEntity?> cancelBooking(int id, String reason);
+  Future<List<RoomEntity>> getRoomsByHotel(int hotelId);
+  Future<List<TimeSlotEntity>> getTimeSlotsByRoom(int roomId);
 }

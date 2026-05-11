@@ -10,21 +10,44 @@ class HotelModel extends HotelEntity {
     super.phone,
     super.description,
     required super.status,
+    required super.isDeleted,
     required super.createdAt,
+    super.updatedAt,
   });
 
   factory HotelModel.fromJson(Map<String, dynamic> json) {
     return HotelModel(
-      id:          (json['id'] as num).toInt(),
-      ownerId:     (json['ownerId'] as num?)?.toInt() ?? 0,
-      wardId:      (json['wardId'] as num?)?.toInt() ?? 0,
-      name:        (json['name'] as String?) ?? '',
-      street:      json['street'] as String?,
-      phone:       json['phone'] as String?,
+      id: (json['id'] as num).toInt(),
+      ownerId: (json['ownerId'] as num?)?.toInt() ?? 0,
+      wardId: (json['wardId'] as num?)?.toInt() ?? 0,
+      name: (json['name'] as String?) ?? '',
+      street: json['street'] as String?,
+      phone: json['phone'] as String?,
       description: json['description'] as String?,
-      status:      (json['status'] as num?)?.toInt() ?? 0,
-      createdAt:   DateTime.tryParse(json['createdAt'] as String? ?? '') ??
-                   DateTime.now(),
+      status: (json['status'] as num?)?.toInt() ?? 0,
+      isDeleted: json['isDeleted'] as bool? ?? false,
+      createdAt:
+          DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+          DateTime.now(),
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.tryParse(json['updatedAt'] as String)
+          : null,
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'ownerId': ownerId,
+      'wardId': wardId,
+      'name': name,
+      'street': street,
+      'phone': phone,
+      'description': description,
+      'status': status,
+      'isDeleted': isDeleted,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt?.toIso8601String(),
+    };
   }
 }
