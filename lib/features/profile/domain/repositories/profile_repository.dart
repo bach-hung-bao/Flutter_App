@@ -6,4 +6,11 @@ abstract class ProfileRepository {
     required String phone,
     String? dateOfBirth,
   });
+
+  Future<void> updateAvatar({
+    required List<int> bytes,
+    required String fileName,
+  });
+
+  Future<void> addFcmToken(String tokenValue);
 }

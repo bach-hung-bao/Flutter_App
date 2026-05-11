@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'core/storage/auth_storage.dart';
-import 'features/shell/presentation/main_nav_screen.dart';
-import 'features/welcome/presentation/welcome_screen.dart';
+import 'features/shell/presentation/screens/main_nav_screen.dart';
+import 'features/welcome/presentation/screens/welcome_screen.dart';
+import 'injection.dart' as di;
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await di.init();
   runApp(const WhiteHotelApp());
 }
 

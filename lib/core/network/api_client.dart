@@ -65,10 +65,34 @@ class ApiClient {
     String? accessToken,
   }) async {
     final uri = _buildUri(path, null);
-    final response = await _client.delete(
-      uri,
-      headers: _headers(accessToken),
-    );
+    final response = await _client.delete(uri, headers: _headers(accessToken));
+    return _handleResponse(response);
+  }
+
+  // ── MULTIPART POST ─────────────────────────────────────────────
+  Future<Map<String, dynamic>> postMultipart(
+    String path, {
+    Map<String, String>? fields,
+    List<http.MultipartFile>? files,
+    String? accessToken,
+  }) async {
+    final uri = _buildUri(path, null);
+    final request = http.MultipartRequest('POST', uri);
+
+    if (accessToken != null && accessToken.isNotEmpty) {
+      request.headers['Authorization'] = 'Bearer $accessToken';
+    }
+    request.headers['Accept'] = 'application/json';
+
+    if (fields != null) {
+      request.fields.addAll(fields);
+    }
+    if (files != null) {
+      request.files.addAll(files);
+    }
+
+    final streamed = await request.send();
+    final response = await http.Response.fromStream(streamed);
     return _handleResponse(response);
   }
 
@@ -102,7 +126,11 @@ class ApiClient {
     final decoded = _tryDecode(response.body);
     if (response.statusCode >= 200 && response.statusCode < 300) {
       if (decoded is Map<String, dynamic>) return decoded;
-      return {'success': true, 'statusCode': response.statusCode, 'data': decoded};
+      return {
+        'success': true,
+        'statusCode': response.statusCode,
+        'data': decoded,
+      };
     }
     final message = _extractMessage(decoded) ?? 'Yeu cau that bai';
     throw ApiException(message, response.statusCode);
@@ -121,8 +149,18 @@ class ApiClient {
     if (decoded is Map<String, dynamic>) {
       final message = decoded['message'];
       if (message is String && message.trim().isNotEmpty) return message;
+      final title = decoded['title'];
+      if (title is String && title.trim().isNotEmpty) return title;
+      final detail = decoded['detail'];
+      if (detail is String && detail.trim().isNotEmpty) return detail;
       final errors = decoded['errors'];
       if (errors is List && errors.isNotEmpty) return errors.join(', ');
+      if (errors is Map && errors.isNotEmpty) {
+        return errors.values
+            .expand((value) => value is List ? value : [value])
+            .whereType<Object>()
+            .join(', ');
+      }
     }
     return null;
   }
