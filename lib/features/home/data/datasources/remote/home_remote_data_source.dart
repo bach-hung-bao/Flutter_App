@@ -13,26 +13,29 @@ class HomeRemoteDataSource {
   Future<List<HotelRecommendationEntity>> getSmartRecommendations({
     String? province,
     int topK = 10,
+    int pageIndex = 1,
     String? accessToken,
   }) async {
     List<HotelRecommendationEntity> results = [];
 
     try {
-      // 1. Gọi API Gợi ý thông minh
-      final response = await _client.get(
-        '/api/recommendations/smart',
-        query: {'province': province, 'topK': topK},
-        accessToken: accessToken,
-      );
+      // 1. Gọi API Gợi ý thông minh (Chỉ gọi khi ở trang đầu tiên)
+      if (pageIndex == 1) {
+        final response = await _client.get(
+          '/api/recommendations/smart',
+          query: {'province': province, 'topK': topK},
+          accessToken: accessToken,
+        );
 
-      final data = response['data'];
-      if (data != null &&
-          data is Map<String, dynamic> &&
-          data['hotels'] is List) {
-        results = (data['hotels'] as List)
-            .whereType<Map<String, dynamic>>()
-            .map(HotelRecommendationModel.fromJson)
-            .toList();
+        final data = response['data'];
+        if (data != null &&
+            data is Map<String, dynamic> &&
+            data['hotels'] is List) {
+          results = (data['hotels'] as List)
+              .whereType<Map<String, dynamic>>()
+              .map(HotelRecommendationModel.fromJson)
+              .toList();
+        }
       }
     } catch (_) {}
 
@@ -45,7 +48,7 @@ class HomeRemoteDataSource {
           // 2a. Nếu người dùng ĐANG CHỌN TỈNH -> Phải gọi API lấy theo Tỉnh
           final fallbackRes = await _client.get(
             '/api/hotels/by-province',
-            query: {'province': province},
+            query: {'province': province, 'pageIndex': pageIndex, 'pageSize': topK},
             accessToken: accessToken,
           );
           
@@ -58,7 +61,7 @@ class HomeRemoteDataSource {
           // 2b. Nếu KHÔNG CHỌN TỈNH (Tất cả) -> Lấy danh sách chung
           final fallbackRes = await _client.get(
             '/api/hotels/all-with-province',
-            query: {'pageIndex': 1, 'pageSize': topK},
+            query: {'pageIndex': pageIndex, 'pageSize': topK},
             accessToken: accessToken,
           );
 

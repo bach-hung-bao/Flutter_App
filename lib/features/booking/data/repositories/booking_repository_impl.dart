@@ -60,4 +60,9 @@ class BookingRepositoryImpl implements BookingRepository {
   Future<List<TimeSlotEntity>> getTimeSlotsByRoom(int roomId) {
     return remoteDataSource.getTimeSlotsByRoom(roomId);
   }
+
+  @override
+  Future<BookingEntity?> updateBookingStatus(int id, int status) async {
+    return await remoteDataSource.updateBookingStatus(id, status);
+  }
 }

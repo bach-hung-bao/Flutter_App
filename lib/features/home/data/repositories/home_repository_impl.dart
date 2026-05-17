@@ -12,11 +12,13 @@ class HomeRepositoryImpl implements HomeRepository {
   Future<List<HotelRecommendationEntity>> getSmartRecommendations({
     String? province,
     int topK = 10,
+    int pageIndex = 1,
     String? accessToken,
   }) async {
     return await remoteDataSource.getSmartRecommendations(
       province: province,
       topK: topK,
+      pageIndex: pageIndex,
       accessToken: accessToken,
     );
   }

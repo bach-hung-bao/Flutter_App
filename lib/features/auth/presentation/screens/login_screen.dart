@@ -7,9 +7,8 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/storage/auth_storage.dart';
 import '../../../../core/widgets/custom_text_field.dart';
 import '../../data/models/auth_session_model.dart';
-import '../../../shell/presentation/screens/main_nav_screen.dart'; 
+import '../../../shell/presentation/screens/main_nav_screen.dart';
 import 'register_screen.dart';
-import 'forgot_password_screen.dart';
 
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
@@ -60,10 +59,9 @@ class _LoginScreenContentState extends State<_LoginScreenContent> {
 
     if (_emailError != null || _passError != null) return;
 
-    context.read<AuthBloc>().add(LoginEvent(
-      email: _emailController.text,
-      password: _passController.text,
-    ));
+    context.read<AuthBloc>().add(
+      LoginEvent(email: _emailController.text, password: _passController.text),
+    );
   }
 
   @override
@@ -73,10 +71,12 @@ class _LoginScreenContentState extends State<_LoginScreenContent> {
       body: BlocConsumer<AuthBloc, AuthState>(
         listener: (context, state) async {
           if (state is AuthSuccess) {
-            await _authStorage.saveSession(state.authEntity as AuthSessionModel);
+            await _authStorage.saveSession(
+              state.authEntity as AuthSessionModel,
+            );
             if (!mounted) return;
             Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (_) => const MainNavScreen()), 
+              MaterialPageRoute(builder: (_) => const MainNavScreen()),
               (route) => false,
             );
           } else if (state is AuthError) {
@@ -132,31 +132,20 @@ class _LoginScreenContentState extends State<_LoginScreenContent> {
                       errorText: _passError,
                       textInputAction: TextInputAction.done,
                       onSubmitted: (_) => _handleLogin(),
-                      onToggle: () => setState(() => _isObsecure = !_isObsecure),
+                      onToggle: () =>
+                          setState(() => _isObsecure = !_isObsecure),
                     ),
                     if (_formError != null) ...[
                       const SizedBox(height: 10),
                       Text(
                         _formError!,
-                        style: GoogleFonts.poppins(color: Colors.red, fontSize: 13),
+                        style: GoogleFonts.poppins(
+                          color: Colors.red,
+                          fontSize: 13,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                     ],
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (c) => const ForgotPasswordScreen(),
-                          ),
-                        ),
-                        child: const Text(
-                          'Quên mật khẩu?',
-                          style: TextStyle(color: AppColors.brownAccent),
-                        ),
-                      ),
-                    ),
                     const SizedBox(height: 30),
                     SizedBox(
                       width: double.infinity,
@@ -170,7 +159,9 @@ class _LoginScreenContentState extends State<_LoginScreenContent> {
                           ),
                         ),
                         child: isLoading
-                            ? const CircularProgressIndicator(color: Colors.white)
+                            ? const CircularProgressIndicator(
+                                color: Colors.white,
+                              )
                             : const Text(
                                 'Đăng nhập',
                                 style: TextStyle(
@@ -184,7 +175,9 @@ class _LoginScreenContentState extends State<_LoginScreenContent> {
                     GestureDetector(
                       onTap: () => Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (c) => const RegisterScreen()),
+                        MaterialPageRoute(
+                          builder: (c) => const RegisterScreen(),
+                        ),
                       ),
                       child: const Text(
                         'Tạo tài khoản',

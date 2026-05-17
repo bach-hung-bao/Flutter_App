@@ -8,28 +8,41 @@ import '../../../home/presentation/screens/home_screen.dart';
 import '../../../profile/presentation/screens/profile_screen.dart';
 
 class MainNavScreen extends StatefulWidget {
-  const MainNavScreen({super.key});
+  final int initialIndex;
+  final int initialBookingTab;
+
+  const MainNavScreen({
+    super.key,
+    this.initialIndex = 0,
+    this.initialBookingTab = 0,
+  });
 
   @override
   State<MainNavScreen> createState() => _MainNavScreenState();
 }
 
 class _MainNavScreenState extends State<MainNavScreen> {
-  int _currentIndex = 0;
+  late int _currentIndex;
 
-  final _screens = const [
-    HomeScreen(),
-    MyBookingsScreen(),
-    FavoritesScreen(),
-    ProfileScreen(),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final screens = [
+      const HomeScreen(),
+      MyBookingsScreen(initialTabIndex: widget.initialBookingTab),
+      const FavoritesScreen(),
+      const ProfileScreen(),
+    ];
+
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
-        children: _screens,
+        children: screens,
       ),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(

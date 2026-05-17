@@ -3,12 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:ui';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart';
 import '../../../../../injection.dart' as di;
+import '../../../../../core/storage/auth_storage.dart';
 import '../bloc/booking_bloc.dart';
 
 import '../../domain/entities/booking_entity.dart';
-
-
 import '../../../review/presentation/screens/write_review_screen.dart';
 
 // ─── Palette ────────────────────────────────────────────────────────────────
@@ -24,10 +24,7 @@ const _kDivider = Color(0xFFEAEEEC);
 class BookingDetailScreen extends StatelessWidget {
   final BookingEntity booking;
 
-  const BookingDetailScreen({
-    super.key,
-    required this.booking,
-  });
+  const BookingDetailScreen({super.key, required this.booking});
 
   @override
   Widget build(BuildContext context) {
@@ -41,17 +38,17 @@ class BookingDetailScreen extends StatelessWidget {
 class _BookingDetailScreenView extends StatefulWidget {
   final BookingEntity booking;
 
-  const _BookingDetailScreenView({
-    required this.booking,
-  });
+  const _BookingDetailScreenView({required this.booking});
 
   @override
-  State<_BookingDetailScreenView> createState() => _BookingDetailScreenViewState();
+  State<_BookingDetailScreenView> createState() =>
+      _BookingDetailScreenViewState();
 }
 
 class _BookingDetailScreenViewState extends State<_BookingDetailScreenView>
     with SingleTickerProviderStateMixin {
   late AnimationController _fadeCtrl;
+  int? _currentUserId;
 
   Color get _statusColor {
     final b = widget.booking;
@@ -76,6 +73,10 @@ class _BookingDetailScreenViewState extends State<_BookingDetailScreenView>
       vsync: this,
       duration: const Duration(milliseconds: 500),
     )..forward();
+    // Load current userId asynchronously
+    AuthStorage().getSession().then((session) {
+      if (mounted) setState(() => _currentUserId = session?.userId);
+    });
   }
 
   @override
@@ -84,123 +85,23 @@ class _BookingDetailScreenViewState extends State<_BookingDetailScreenView>
     super.dispose();
   }
 
-  Future<void> _cancel() async {
-    final reason = await _showCancelDialog();
-    if (reason == null || reason.trim().isEmpty) return;
-
-    if (mounted) {
-      context.read<BookingBloc>().add(CancelBookingEvent(widget.booking.id, reason: reason));
-    }
-  }
-
-  Future<String?> _showCancelDialog() async {
-    final ctrl = TextEditingController();
-    return showDialog<String>(
+  void _showCancelDialog(BuildContext context) {
+    showDialog(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.5),
-      builder: (ctx) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
-        child: AlertDialog(
-          backgroundColor: _kCard,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
+      builder: (ctx) => AlertDialog(
+        title: const Text('Xác nhận hủy?'),
+        content: const Text('Bạn sẽ mất toàn bộ số tiền đã thanh toán. Bạn có chắc chắn muốn hủy không?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Quay lại')),
+          TextButton(
+            onPressed: () {
+              context.read<BookingBloc>().add(CancelBookingEvent(widget.booking.id, reason: 'Hủy phòng'));
+              Navigator.pop(ctx);
+              Navigator.pop(context);
+            },
+            child: const Text('Tôi chấp nhận hủy', style: TextStyle(color: Colors.redAccent)),
           ),
-          titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-          contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-          actionsPadding: const EdgeInsets.all(16),
-          title: Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.cancel_outlined,
-                  color: Colors.red,
-                  size: 30,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Hủy đặt phòng?',
-                style: GoogleFonts.playfairDisplay(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 20,
-                  color: _kTextPrimary,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Vui lòng cho chúng tôi biết lý do',
-                style: GoogleFonts.dmSans(fontSize: 13, color: _kTextSec),
-              ),
-            ],
-          ),
-          content: TextField(
-            controller: ctrl,
-            style: GoogleFonts.dmSans(fontSize: 14, color: _kTextPrimary),
-            decoration: InputDecoration(
-              hintText: 'Nhập lý do hủy...',
-              hintStyle: GoogleFonts.dmSans(color: _kTextSec),
-              filled: true,
-              fillColor: _kSurface,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide.none,
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: const BorderSide(color: Colors.red, width: 1.5),
-              ),
-              contentPadding: const EdgeInsets.all(14),
-            ),
-            maxLines: 3,
-          ),
-          actions: [
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: _kTextSec,
-                      side: const BorderSide(color: _kDivider),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                    child: Text(
-                      'Giữ lại',
-                      style: GoogleFonts.dmSans(fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.pop(ctx, ctrl.text),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                    child: Text(
-                      'Xác nhận hủy',
-                      style: GoogleFonts.dmSans(fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -244,6 +145,9 @@ class _BookingDetailScreenViewState extends State<_BookingDetailScreenView>
             if (state is MyBookingsLoaded) {
               isCancelling = state.isCancelling;
             }
+
+            // currentUserId loaded from initState
+            final currentUserId = _currentUserId;
 
             return Column(
               children: [
@@ -306,7 +210,7 @@ class _BookingDetailScreenViewState extends State<_BookingDetailScreenView>
                           ],
 
                           const SizedBox(height: 32),
-                          _buildActions(b, isCancelling),
+                          _buildActions(b, isCancelling, currentUserId),
                         ],
                       ),
                     ),
@@ -480,84 +384,67 @@ class _BookingDetailScreenViewState extends State<_BookingDetailScreenView>
   }
 
   // ── Payment Card ─────────────────────────────────────────────────────────────
+  // (Giữ phần Palette và các imports ở đầu file của bạn)
+
   Widget _buildPaymentCard(BookingEntity b) {
+    final currencyFmt = NumberFormat.currency(locale: 'vi_VN', symbol: '₫');
     return Container(
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            _kGreen.withValues(alpha: 0.06),
-            _kGreenAccent.withValues(alpha: 0.04),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: _kGreen.withValues(alpha: 0.15)),
+        border: Border.all(color: _kDivider),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                const Icon(
-                  Icons.receipt_long_rounded,
-                  color: _kGreen,
-                  size: 18,
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  'Đơn giá',
-                  style: GoogleFonts.dmSans(fontSize: 14, color: _kTextSec),
-                ),
-                const Spacer(),
-                Text(
-                  '${_money(b.roomUnitPrice)} VNĐ',
-                  style: GoogleFonts.dmSans(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: _kTextPrimary,
-                  ),
-                ),
-              ],
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Container(
-                height: 1,
-                color: _kGreen.withValues(alpha: 0.15),
-              ),
-            ),
-            Row(
-              children: [
-                const Icon(
-                  Icons.attach_money_rounded,
-                  color: _kGreen,
-                  size: 18,
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  'Tổng tiền',
-                  style: GoogleFonts.dmSans(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: _kTextPrimary,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  '${_money(b.totalAmount)} VNĐ',
-                  style: GoogleFonts.playfairDisplay(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: _kGreen,
-                  ),
-                ),
-              ],
-            ),
-          ],
+      child: Column(
+        children: [
+          _buildPriceRow(
+            'Đơn giá/đêm',
+            currencyFmt.format(b.roomUnitPrice),
+            isBold: false,
+          ),
+          const SizedBox(height: 12),
+          _buildPriceRow('Số lượng đêm', 'x${b.nightCount}', isBold: false),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Divider(height: 1),
+          ),
+          _buildPriceRow(
+            'Tổng cộng',
+            currencyFmt.format(b.totalAmount),
+            isBold: true,
+            color: _kGreen,
+          ),
+          const SizedBox(height: 8),
+          _buildPriceRow(
+            'Đã thanh toán',
+            currencyFmt.format(b.totalAmount),
+            isBold: false,
+            color: Colors.blueGrey,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPriceRow(
+    String label,
+    String value, {
+    bool isBold = false,
+    Color? color,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: GoogleFonts.dmSans(color: _kTextSec, fontSize: 14)),
+        Text(
+          value,
+          style: GoogleFonts.dmSans(
+            fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
+            fontSize: isBold ? 18 : 14,
+            color: color ?? _kTextPrimary,
+          ),
         ),
-      ),
+      ],
     );
   }
 
@@ -643,15 +530,78 @@ class _BookingDetailScreenViewState extends State<_BookingDetailScreenView>
   }
 
   // ── Actions ──────────────────────────────────────────────────────────────────
-  Widget _buildActions(BookingEntity b, bool isCancelling) {
-    if (b.isPending || b.isConfirmed) {
-      return _GradientButton(
-        label: 'Hủy đặt phòng',
-        icon: Icons.cancel_rounded,
-        isLoading: isCancelling,
-        isDestructive: true,
-        onPressed: _cancel,
-      );
+  Widget _buildActions(BookingEntity b, bool isCancelling, int? currentUserId) {
+    if (b.status == 0) { // Chỉ hiện khi đang Chờ duyệt (Pending)
+      final isCreator = currentUserId == b.customerId;
+
+      if (!isCreator) {
+        return Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 52,
+                  child: OutlinedButton(
+                    onPressed: isCancelling ? null : () {
+                      context.read<BookingBloc>().add(UpdateBookingStatusEvent(b.id, 3)); // 3 = Cancelled/Rejected
+                      Navigator.pop(context);
+                    },
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Colors.redAccent),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: Text('Từ chối', style: GoogleFonts.dmSans(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: SizedBox(
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: isCancelling ? null : () {
+                      context.read<BookingBloc>().add(UpdateBookingStatusEvent(b.id, 1)); // 1 = Confirmed
+                      Navigator.pop(context);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _kGreen,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ),
+                    child: Text('Xác nhận', style: GoogleFonts.dmSans(color: Colors.white, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      } else {
+        return Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Column(
+            children: [
+              Text(
+                '* Lưu ý: Hủy đặt phòng lúc này sẽ không được hoàn lại tiền.',
+                style: GoogleFonts.dmSans(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: OutlinedButton(
+                  onPressed: () => _showCancelDialog(context),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colors.redAccent),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: Text('Hủy đặt phòng', style: GoogleFonts.dmSans(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
     }
 
     if (b.isCompleted) {
@@ -661,10 +611,8 @@ class _BookingDetailScreenViewState extends State<_BookingDetailScreenView>
         onPressed: () => Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => WriteReviewScreen(
-              bookingId: b.id,
-              roomId: b.roomId,
-            ),
+            builder: (_) =>
+                WriteReviewScreen(bookingId: b.id, roomId: b.roomId),
           ),
         ),
       );

@@ -12,6 +12,9 @@ class HomeLoaded extends HomeState {
   final ProvinceEntity? selectedProvince;
   final String fullName;
   final bool isRefreshing;
+  final int pageIndex;
+  final bool hasReachedMax;
+  final bool isFetchingMore;
 
   HomeLoaded({
     required this.provinces,
@@ -19,6 +22,9 @@ class HomeLoaded extends HomeState {
     this.selectedProvince,
     required this.fullName,
     this.isRefreshing = false,
+    this.pageIndex = 1,
+    this.hasReachedMax = false,
+    this.isFetchingMore = false,
   });
 
   HomeLoaded copyWith({
@@ -27,13 +33,19 @@ class HomeLoaded extends HomeState {
     ProvinceEntity? selectedProvince,
     String? fullName,
     bool? isRefreshing,
+    int? pageIndex,
+    bool? hasReachedMax,
+    bool? isFetchingMore,
   }) {
     return HomeLoaded(
       provinces: provinces ?? this.provinces,
       hotels: hotels ?? this.hotels,
-      selectedProvince: selectedProvince, // Need to handle null explicitly if needed, but for our case it's fine.
+      selectedProvince: selectedProvince, 
       fullName: fullName ?? this.fullName,
       isRefreshing: isRefreshing ?? this.isRefreshing,
+      pageIndex: pageIndex ?? this.pageIndex,
+      hasReachedMax: hasReachedMax ?? this.hasReachedMax,
+      isFetchingMore: isFetchingMore ?? this.isFetchingMore,
     );
   }
 }

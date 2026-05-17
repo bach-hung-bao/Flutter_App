@@ -28,6 +28,7 @@ import 'features/booking/domain/usecases/create_booking_usecase.dart';
 import 'features/booking/domain/usecases/get_my_bookings_usecase.dart';
 import 'features/booking/domain/usecases/get_rooms_usecase.dart';
 import 'features/booking/domain/usecases/get_time_slots_usecase.dart';
+import 'features/booking/domain/usecases/update_booking_status_usecase.dart';
 import 'features/booking/presentation/bloc/booking_bloc.dart';
 
 import 'features/favorite/data/datasources/remote/favorite_remote_data_source.dart';
@@ -107,6 +108,7 @@ Future<void> init() async {
       createBooking: sl(),
       getRoomsByHotel: sl(),
       getTimeSlotsByRoom: sl(),
+      updateBookingStatus: sl(),
     ),
   );
   sl.registerLazySingleton(() => GetMyBookingsUseCase(sl()));
@@ -114,6 +116,7 @@ Future<void> init() async {
   sl.registerLazySingleton(() => CreateBookingUseCase(sl()));
   sl.registerLazySingleton(() => GetRoomsByHotelIdUseCase(sl()));
   sl.registerLazySingleton(() => GetTimeSlotsByRoomIdUseCase(sl()));
+  sl.registerLazySingleton(() => UpdateBookingStatusUseCase(sl()));
   sl.registerLazySingleton<BookingRepository>(
     () => BookingRepositoryImpl(remoteDataSource: sl()),
   );

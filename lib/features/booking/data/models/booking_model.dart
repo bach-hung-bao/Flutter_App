@@ -20,7 +20,7 @@ class BookingModel extends BookingEntity {
 
   factory BookingModel.fromJson(Map<String, dynamic> json) {
     return BookingModel(
-      id:            (json['id'] as num).toInt(),
+      id:            (json['id'] as num?)?.toInt() ?? 0,
       roomId:        (json['roomId'] as num?)?.toInt() ?? 0,
       customerId:    (json['customerId'] as num?)?.toInt() ?? 0,
       checkInDate:   DateTime.tryParse(json['checkInDate'] as String? ?? '') ?? DateTime.now(),

@@ -19,6 +19,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
   }) : super(HomeInitial()) {
     on<LoadHomeDataEvent>(_onLoadHomeData);
     on<RefreshHotelsEvent>(_onRefreshHotels);
+    on<LoadMoreHotelsEvent>(_onLoadMoreHotels);
   }
 
   Future<void> _onLoadHomeData(
@@ -32,6 +33,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
 
       final hotels = await getRecommendations.execute(
         topK: 12,
+        pageIndex: 1,
         province: null,
         accessToken: session?.accessToken,
       );
@@ -41,6 +43,8 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
         hotels: hotels,
         selectedProvince: null,
         fullName: session?.fullName ?? 'Bạn',
+        pageIndex: 1,
+        hasReachedMax: hotels.length < 12,
       ));
     } catch (e) {
       emit(HomeError(e.toString()));
@@ -53,10 +57,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
   ) async {
     final currentState = state;
     if (currentState is HomeLoaded) {
-      emit(HomeLoaded(
-        provinces: currentState.provinces,
-        hotels: currentState.hotels,
-        fullName: currentState.fullName,
+      emit(currentState.copyWith(
         isRefreshing: true,
         selectedProvince: event.province, // Update immediately for UI responsiveness
       ));
@@ -65,19 +66,53 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
         final session = await _authStorage.getSession();
         final hotels = await getRecommendations.execute(
           topK: 12,
+          pageIndex: 1,
           province: event.province?.name,
           accessToken: session?.accessToken,
         );
 
-        emit(HomeLoaded(
-          provinces: currentState.provinces,
+        emit(currentState.copyWith(
           hotels: hotels,
           selectedProvince: event.province,
-          fullName: currentState.fullName,
           isRefreshing: false,
+          pageIndex: 1,
+          hasReachedMax: hotels.length < 12,
         ));
       } catch (e) {
         emit(HomeError(e.toString()));
+      }
+    }
+  }
+
+  Future<void> _onLoadMoreHotels(
+    LoadMoreHotelsEvent event,
+    Emitter<HomeState> emit,
+  ) async {
+    final currentState = state;
+    if (currentState is HomeLoaded && !currentState.hasReachedMax && !currentState.isFetchingMore) {
+      emit(currentState.copyWith(isFetchingMore: true));
+      try {
+        final session = await _authStorage.getSession();
+        final nextPage = currentState.pageIndex + 1;
+        final newHotels = await getRecommendations.execute(
+          topK: 12,
+          pageIndex: nextPage,
+          province: currentState.selectedProvince?.name,
+          accessToken: session?.accessToken,
+        );
+
+        if (newHotels.isEmpty) {
+          emit(currentState.copyWith(hasReachedMax: true, isFetchingMore: false));
+        } else {
+          emit(currentState.copyWith(
+            hotels: List.of(currentState.hotels)..addAll(newHotels),
+            pageIndex: nextPage,
+            hasReachedMax: newHotels.length < 12,
+            isFetchingMore: false,
+          ));
+        }
+      } catch (e) {
+        emit(currentState.copyWith(isFetchingMore: false));
       }
     }
   }

@@ -3,10 +3,11 @@ class NotificationEntity {
   final int userId;
   final String? title;
   final String? message;
-  final int
-  type; // Using int for enum for simplicity, or String depending on API
+  final int type;
   final bool isRead;
   final DateTime createdAt;
+  final int? relatedId;
+  final String? relatedTable;
 
   const NotificationEntity({
     required this.id,
@@ -16,6 +17,8 @@ class NotificationEntity {
     required this.type,
     required this.isRead,
     required this.createdAt,
+    this.relatedId,
+    this.relatedTable,
   });
 
   factory NotificationEntity.fromJson(Map<String, dynamic> json) {
@@ -29,6 +32,8 @@ class NotificationEntity {
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt']) ?? DateTime.now()
           : DateTime.now(),
+      relatedId: json['relatedId'] as int?,
+      relatedTable: json['relatedTable'] as String?,
     );
   }
 }
