@@ -1,6 +1,7 @@
 import '../../../../../core/network/api_client.dart';
 import '../../../../../core/storage/auth_storage.dart';
 import '../../../domain/entities/booking_entity.dart';
+import 'package:intl/intl.dart';
 
 import '../../models/booking_model.dart';
 import '../../models/room_model.dart';
@@ -30,10 +31,10 @@ class BookingRemoteDataSource {
       accessToken: token,
       body: {
         'roomId': roomId,
-        'checkInDate': checkInDate.toIso8601String(),
-        'checkOutDate': checkOutDate.toIso8601String(),
+        'checkInDate': DateFormat("yyyy-MM-dd'T'HH:mm:ss").format(checkInDate),
+        'checkOutDate': DateFormat("yyyy-MM-dd'T'HH:mm:ss").format(checkOutDate),
         'guestCount': guestCount,
-        'paidAmount': paidAmount,
+        'paidAmount': paidAmount.toInt(),
         if (paymentMethod != null) 'paymentMethod': paymentMethod,
         if (transactionCode != null && transactionCode.trim().isNotEmpty)
           'transactionCode': transactionCode.trim(),
@@ -50,19 +51,24 @@ class BookingRemoteDataSource {
     int pageSize = 20,
   }) async {
     final token = await _authStorage.getAccessToken();
-    final response = await _client.get(
-      '/api/bookings/my-bookings',
-      query: {'pageIndex': pageIndex, 'pageSize': pageSize},
-      accessToken: token,
-    );
-    final data = response['data'];
-    if (data is! List) return (<BookingEntity>[], 0);
-    final total = (response['totalCount'] as num?)?.toInt() ?? 0;
-    final items = data
-        .whereType<Map<String, dynamic>>()
-        .map(BookingModel.fromJson)
-        .toList();
-    return (items, total);
+    try {
+      final response = await _client.get(
+        '/api/bookings/my-bookings',
+        query: {'pageIndex': pageIndex, 'pageSize': pageSize},
+        accessToken: token,
+      );
+      final data = response['data'];
+      if (data is! List) return (<BookingEntity>[], 0);
+      final total = (response['totalCount'] as num?)?.toInt() ?? 0;
+      final items = data
+          .whereType<Map<String, dynamic>>()
+          .map(BookingModel.fromJson)
+          .toList();
+      return (items, total);
+    } catch (e) {
+      // Fallback to empty list instead of throwing exception to show empty state
+      return (<BookingEntity>[], 0);
+    }
   }
 
   Future<BookingEntity?> cancelBooking(int id, String reason) async {
@@ -71,6 +77,18 @@ class BookingRemoteDataSource {
       '/api/bookings/$id/cancel',
       accessToken: token,
       body: {'reason': reason},
+    );
+    final data = response['data'];
+    if (data is! Map<String, dynamic>) return null;
+    return BookingModel.fromJson(data);
+  }
+
+  Future<BookingEntity?> updateBookingStatus(int id, int status) async {
+    final token = await _authStorage.getAccessToken();
+    final response = await _client.put(
+      '/api/bookings/$id/status',
+      accessToken: token,
+      body: {'status': status},
     );
     final data = response['data'];
     if (data is! Map<String, dynamic>) return null;

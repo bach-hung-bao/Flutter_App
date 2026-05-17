@@ -9,3 +9,5 @@ class RefreshHotelsEvent extends HomeEvent {
 
   RefreshHotelsEvent({this.province});
 }
+
+class LoadMoreHotelsEvent extends HomeEvent {}

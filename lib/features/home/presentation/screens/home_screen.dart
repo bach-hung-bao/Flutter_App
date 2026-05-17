@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'dart:async';
+
 import '../../../../../injection.dart' as di;
 import '../bloc/home_bloc.dart';
 import '../../../search/presentation/screens/search_screen.dart';
@@ -13,9 +15,20 @@ import '../../../hotel/presentation/screens/hotel_detail_screen.dart';
 
 const _kGreen = AppColors.greenPrimary;
 const _kGreenMedium = AppColors.greenMedium;
-const _kSurface = AppColors.scaffoldBg;
+const _kSurface =
+    AppColors.scaffoldBg; // Hoặc Color(0xFFF5F7FA) nếu muốn nền sáng mượt hơn
 const _kTextPrimary = Color(0xFF172B24);
 const _kTextSec = Color(0xFF6B7B75);
+
+// --- HÀM FORMAT TIỀN TỆ ---
+String _formatCurrency(double amount) {
+  return amount
+      .toStringAsFixed(0)
+      .replaceAllMapped(
+        RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+        (m) => '${m[1]}.',
+      );
+}
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -29,387 +42,242 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-class _HomeScreenView extends StatelessWidget {
+class _HomeScreenView extends StatefulWidget {
   const _HomeScreenView();
+
+  @override
+  State<_HomeScreenView> createState() => _HomeScreenViewState();
+}
+
+class _HomeScreenViewState extends State<_HomeScreenView> {
+  // Controller cho Banner cuộn tự động (Tùy chọn)
+  final PageController _bannerController = PageController();
+  final ScrollController _scrollController = ScrollController();
+  int _currentBannerIndex = 0;
+
+  final List<String> _promoBanners = [
+    'Assets/images/splash_bg.png',
+    'Assets/images/splash_bg6.png',
+    'Assets/images/splash_bg12.png',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    _bannerController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+      context.read<HomeBloc>().add(LoadMoreHotelsEvent());
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
+      value: SystemUiOverlayStyle.dark, // Chữ status bar màu tối
       child: Scaffold(
         backgroundColor: _kSurface,
         body: BlocBuilder<HomeBloc, HomeState>(
           builder: (context, state) {
-            bool isLoading = state is HomeInitial || state is HomeLoading;
-            bool isRefreshing = false;
-            String? error;
-            String fullName = 'Bạn';
-            List<ProvinceEntity> provinces = [];
-            ProvinceEntity? selectedProvince;
-            List<HotelRecommendationEntity> hotels = [];
-
-            if (state is HomeError) {
-              error = state.message;
-            } else if (state is HomeLoaded) {
-              fullName = state.fullName;
-              provinces = state.provinces;
-              hotels = state.hotels;
-              selectedProvince = state.selectedProvince;
-              isRefreshing = state.isRefreshing;
-            }
-
-            return RefreshIndicator(
-              color: _kGreen,
-              onRefresh: () async {
-                context.read<HomeBloc>().add(LoadHomeDataEvent());
-              },
-              child: CustomScrollView(
-                physics: const BouncingScrollPhysics(),
-                slivers: [
-                  SliverToBoxAdapter(
-                    child: _buildTopSection(context, fullName),
-                  ),
-                  const SliverToBoxAdapter(child: SizedBox(height: 24)),
-                  SliverToBoxAdapter(child: _buildQuickCategories(context)),
-                  const SliverToBoxAdapter(child: SizedBox(height: 32)),
-                  SliverToBoxAdapter(
-                    child: _buildProvinceSection(
-                      context,
-                      provinces,
-                      selectedProvince,
+            if (state is HomeLoading || state is HomeInitial) {
+              return const Center(
+                child: CircularProgressIndicator(color: _kGreen),
+              );
+            } else if (state is HomeError) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      color: Colors.red,
+                      size: 60,
                     ),
-                  ),
-                  SliverToBoxAdapter(child: _buildHotelsHeader(isRefreshing)),
-                  if (isLoading)
-                    const SliverFillRemaining(
-                      child: Center(
-                        child: CircularProgressIndicator(color: _kGreen),
+                    const SizedBox(height: 16),
+                    Text(
+                      state.message,
+                      style: GoogleFonts.dmSans(color: _kTextPrimary),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () =>
+                          context.read<HomeBloc>().add(LoadHomeDataEvent()),
+                      style: ElevatedButton.styleFrom(backgroundColor: _kGreen),
+                      child: Text(
+                        'Thử lại',
+                        style: GoogleFonts.dmSans(color: Colors.white),
                       ),
-                    )
-                  else if (error != null)
-                    SliverToBoxAdapter(child: _buildError(context))
-                  else if (hotels.isEmpty)
-                    SliverToBoxAdapter(child: _buildEmpty())
-                  else
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-                      sliver: SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (_, i) => _buildHotelCard(context, hotels[i]),
-                          childCount: hotels.length,
+                    ),
+                  ],
+                ),
+              );
+            } else if (state is HomeLoaded) {
+              return SafeArea(
+                child: RefreshIndicator(
+                  color: _kGreen,
+                  onRefresh: () async {
+                    context.read<HomeBloc>().add(LoadHomeDataEvent());
+                  },
+                  child: CustomScrollView(
+                    controller: _scrollController,
+                    physics: const BouncingScrollPhysics(),
+                    slivers: [
+                      // 1. Header & Logo
+                      SliverToBoxAdapter(
+                        child: _buildHeader(context, state.fullName),
+                      ),
+
+                      // 2. Thanh Tìm Kiếm
+                      SliverToBoxAdapter(child: _buildSearchBar(context)),
+
+                      // 3. Banner Quảng cáo
+                      SliverToBoxAdapter(child: _buildPromoBanner()),
+
+                      // 4. Danh sách Tỉnh/Thành phố
+                      SliverToBoxAdapter(
+                        child: _buildProvincesSection(context, state),
+                      ),
+
+                      // 5. Tiêu đề Khách sạn nổi bật
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+                          child: Text(
+                            'Khách sạn dành cho bạn',
+                            style: GoogleFonts.dmSans(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: _kTextPrimary,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                ],
-              ),
-            );
+
+                      // 6. Danh sách Khách sạn
+                      SliverPadding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        sliver: SliverList(
+                          delegate: SliverChildBuilderDelegate((
+                            context,
+                            index,
+                          ) {
+                            if (index == state.hotels.length) {
+                              return state.isFetchingMore
+                                  ? const Padding(
+                                      padding: EdgeInsets.symmetric(vertical: 20),
+                                      child: Center(
+                                        child: CircularProgressIndicator(color: _kGreen),
+                                      ),
+                                    )
+                                  : const SizedBox.shrink();
+                            }
+                            final hotel = state.hotels[index];
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 20),
+                              child: _HotelCard(hotel: hotel),
+                            );
+                          }, childCount: state.hotels.length + (state.isFetchingMore ? 1 : 0)),
+                        ),
+                      ),
+
+                      const SliverToBoxAdapter(child: SizedBox(height: 30)),
+                    ],
+                  ),
+                ),
+              );
+            }
+            return const SizedBox.shrink();
           },
         ),
       ),
     );
   }
 
-  Widget _buildTopSection(BuildContext context, String fullName) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Container(
-          height: 240,
-          padding: const EdgeInsets.fromLTRB(20, 50, 20, 0),
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [_kGreen, _kGreenMedium],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.only(
-              bottomLeft: Radius.circular(32),
-              bottomRight: Radius.circular(32),
-            ),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+  // --- WIDGET: HEADER LỜI CHÀO & LOGO ---
+  Widget _buildHeader(BuildContext context, String fullName) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Xin chào, $fullName 👋',
-                      style: GoogleFonts.dmSans(
-                        color: Colors.white,
-                        fontSize: 16,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Khám phá kỳ nghỉ\ntuyệt vời của bạn',
-                      style: GoogleFonts.playfairDisplay(
-                        color: Colors.white,
-                        fontSize: 26,
-                        fontWeight: FontWeight.w700,
-                        height: 1.2,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              // Chỗ này hiện Logo App
               Container(
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.15),
+                  color: _kGreen.withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
-                child: IconButton(
-                  icon: const Icon(
-                    Icons.notifications_none_rounded,
-                    color: Colors.white,
-                  ),
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const NotificationsScreen(),
-                    ),
+                child: ClipOval(
+                  child: Image.asset(
+                    'Assets/images/logo.png', // Đảm bảo có logo này trong Assets
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      // Fallback nếu chưa có logo
+                      return const Icon(
+                        Icons.maps_home_work_rounded,
+                        color: _kGreen,
+                        size: 28,
+                      );
+                    },
                   ),
                 ),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Xin chào,',
+                    style: GoogleFonts.dmSans(fontSize: 14, color: _kTextSec),
+                  ),
+                  Text(
+                    fullName,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: _kTextPrimary,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.only(top: 160, left: 20, right: 20),
-          child: Container(
-            padding: const EdgeInsets.all(20),
+          Container(
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
+              shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
-            child: Column(
-              children: [
-                _buildSearchRow(
-                  icon: Icons.location_on_outlined,
-                  title: 'Bạn muốn đi đâu?',
-                  subtitle: 'Tên khách sạn, điểm đến...',
-                  onTap: () => _goToSearch(context),
-                ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Divider(height: 1, color: Color(0xFFF0F0F0)),
-                ),
-                _buildSearchRow(
-                  icon: Icons.calendar_month_outlined,
-                  title: 'Ngày lưu trú',
-                  subtitle: 'Hôm nay - Ngày mai',
-                  onTap: () => _goToSearch(context),
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _kGreen,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    onPressed: () => _goToSearch(context),
-                    child: Text(
-                      'Tìm kiếm khách sạn',
-                      style: GoogleFonts.dmSans(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+            child: IconButton(
+              icon: const Icon(
+                Icons.notifications_outlined,
+                color: _kTextPrimary,
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const NotificationsScreen(),
                   ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSearchRow({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: _kGreen.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: _kGreen, size: 22),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: GoogleFonts.dmSans(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: _kTextPrimary,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: GoogleFonts.dmSans(fontSize: 13, color: _kTextSec),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _goToSearch(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const SearchScreen()),
-    );
-  }
-
-  Widget _buildQuickCategories(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _buildCategoryItem(
-            context,
-            'Khách sạn',
-            Icons.domain_rounded,
-            const Color(0xFFE3F2FD),
-            Colors.blue,
-          ),
-          const SizedBox(width: 16),
-          _buildCategoryItem(
-            context,
-            'Resort',
-            Icons.pool_rounded,
-            const Color(0xFFF3E5F5),
-            Colors.purple,
-          ),
-          const SizedBox(width: 16),
-          _buildCategoryItem(
-            context,
-            'Homestay',
-            Icons.cottage_rounded,
-            const Color(0xFFFFF3E0),
-            Colors.orange,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCategoryItem(
-    BuildContext context,
-    String title,
-    IconData icon,
-    Color bgColor,
-    Color iconColor,
-  ) {
-    return GestureDetector(
-      onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Tính năng đang phát triển')),
-        );
-      },
-      child: Column(
-        children: [
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              color: bgColor,
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Icon(icon, color: iconColor, size: 28),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            title,
-            style: GoogleFonts.dmSans(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: _kTextPrimary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProvinceSection(
-    BuildContext context,
-    List<ProvinceEntity> provinces,
-    ProvinceEntity? selectedProvince,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Khám phá theo khu vực',
-            style: GoogleFonts.playfairDisplay(
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              color: _kTextPrimary,
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 42,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              itemCount: provinces.length + 1,
-              separatorBuilder: (context, index) => const SizedBox(width: 10),
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  final isSelected = selectedProvince == null;
-                  return _ProvinceChip(
-                    label: 'Tất cả',
-                    isSelected: isSelected,
-                    onTap: () {
-                      context.read<HomeBloc>().add(
-                        RefreshHotelsEvent(province: null),
-                      );
-                    },
-                  );
-                }
-                final p = provinces[index - 1];
-                return _ProvinceChip(
-                  label: p.name,
-                  isSelected: selectedProvince?.id == p.id,
-                  onTap: () {
-                    context.read<HomeBloc>().add(
-                      RefreshHotelsEvent(province: p),
-                    );
-                  },
                 );
               },
             ),
@@ -419,122 +287,329 @@ class _HomeScreenView extends StatelessWidget {
     );
   }
 
-  Widget _buildHotelsHeader(bool isRefreshing) {
+  // --- WIDGET: THANH TÌM KIẾM ---
+  Widget _buildSearchBar(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 32, 20, 16),
-      child: Row(
-        children: [
-          Text(
-            'Đề xuất cho bạn',
-            style: GoogleFonts.playfairDisplay(
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              color: _kTextPrimary,
-            ),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      child: GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const SearchScreen()),
+          );
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: _kGreen.withOpacity(0.08),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+            border: Border.all(color: Colors.grey.withOpacity(0.1)),
           ),
-          const Spacer(),
-          if (isRefreshing)
-            const SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(strokeWidth: 2, color: _kGreen),
-            ),
-        ],
+          child: Row(
+            children: [
+              const Icon(Icons.search_rounded, color: _kGreen, size: 28),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Tìm kiếm khách sạn...',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: _kTextPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Địa điểm, tên khách sạn',
+                    style: GoogleFonts.dmSans(fontSize: 13, color: _kTextSec),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildError(BuildContext context) => Padding(
-    padding: const EdgeInsets.all(20),
-    child: Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.redAccent.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.error_outline, color: Colors.redAccent),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Không thể kết nối. Vui lòng thử lại!',
-              style: GoogleFonts.dmSans(color: Colors.redAccent),
-            ),
-          ),
-          TextButton(
-            onPressed: () => context.read<HomeBloc>().add(LoadHomeDataEvent()),
-            child: const Text('Thử lại'),
-          ),
-        ],
-      ),
-    ),
-  );
-
-  Widget _buildEmpty() => Padding(
-    padding: const EdgeInsets.all(40),
-    child: Center(
-      child: Column(
-        children: [
-          Icon(Icons.search_off_rounded, size: 72, color: Colors.grey[300]),
-          const SizedBox(height: 16),
-          Text(
-            'Chưa có khách sạn nào ở khu vực này.',
-            style: GoogleFonts.dmSans(color: _kTextSec, fontSize: 15),
-          ),
-        ],
-      ),
-    ),
-  );
-
-  Widget _buildHotelCard(
-    BuildContext context,
-    HotelRecommendationEntity hotel,
-  ) {
-    return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => HotelDetailScreen(
-            hotelId: hotel.hotelId,
-            hotelName: hotel.name,
-            rating: hotel.averageRating,
+  // --- WIDGET: BANNER QUẢNG CÁO (CAROUSEL) ---
+  Widget _buildPromoBanner() {
+    return Column(
+      children: [
+        SizedBox(
+          height: 160,
+          child: PageView.builder(
+            controller: _bannerController,
+            onPageChanged: (index) {
+              setState(() {
+                _currentBannerIndex = index;
+              });
+            },
+            itemCount: _promoBanners.length,
+            itemBuilder: (context, index) {
+              return Container(
+                margin: const EdgeInsets.symmetric(horizontal: 20),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  image: DecorationImage(
+                    image: AssetImage(_promoBanners[index]),
+                    fit: BoxFit.cover,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
+                ),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        Colors.black.withOpacity(0.6),
+                      ],
+                    ),
+                  ),
+                  padding: const EdgeInsets.all(20),
+                  alignment: Alignment.bottomLeft,
+                  child: Text(
+                    index == 0 ? 'Ưu đãi mùa hè giảm 50%' : 'Khám phá ngay',
+                    style: GoogleFonts.dmSans(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
         ),
-      ),
+        const SizedBox(height: 12),
+        // Dấu chấm chỉ báo (Indicators)
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(
+            3,
+            (index) => AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              height: 8,
+              width: _currentBannerIndex == index ? 24 : 8,
+              decoration: BoxDecoration(
+                color: _currentBannerIndex == index
+                    ? _kGreen
+                    : Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // --- WIDGET: CHỌN TỈNH/THÀNH PHỐ ---
+  Widget _buildProvincesSection(BuildContext context, HomeLoaded state) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+          child: Text(
+            'Khám phá điểm đến',
+            style: GoogleFonts.dmSans(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: _kTextPrimary,
+            ),
+          ),
+        ),
+        SizedBox(
+          height: 42,
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            scrollDirection: Axis.horizontal,
+            itemCount: state.provinces.length + 1,
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: _ProvinceChip(
+                    label: 'Tất cả',
+                    isSelected: state.selectedProvince == null,
+                    onTap: () {
+                      context.read<HomeBloc>().add(
+                        RefreshHotelsEvent(province: null),
+                      );
+                    },
+                  ),
+                );
+              }
+              final province = state.provinces[index - 1];
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: _ProvinceChip(
+                  label: province.name ?? '',
+                  isSelected: state.selectedProvince?.id == province.id,
+                  onTap: () {
+                    context.read<HomeBloc>().add(
+                      RefreshHotelsEvent(province: province),
+                    );
+                  },
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// --- WIDGET: THẺ KHÁCH SẠN (HOTEL CARD) ---
+class _HotelCard extends StatelessWidget {
+  final HotelRecommendationEntity hotel;
+
+  const _HotelCard({required this.hotel});
+
+  @override
+  Widget build(BuildContext context) {
+    // 1. CƠ CHẾ FALLBACK ẢNH RẤT QUAN TRỌNG
+    // Nếu API trả về null hoặc rỗng, dùng ảnh xịn này để app luôn đẹp
+    const String defaultHotelImage =
+        'https://images.unsplash.com/photo-1566073771259-6a8506099945?q=80&w=1000&auto=format&fit=crop';
+
+    // Tùy theo Entity của bạn có trường imageUrl hay list ảnh
+    // Dưới đây giả định Entity có property tên là `imageUrl` hoặc `images`
+    String displayImage = defaultHotelImage;
+    // GIẢ THUYẾT: Nếu entity của bạn gọi là hotel.imageUrl (Sửa lại cho đúng với entity của bạn)
+    // if (hotel.imageUrl != null && hotel.imageUrl!.isNotEmpty) {
+    //   displayImage = hotel.imageUrl!;
+    // }
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => HotelDetailScreen(
+              hotelId: hotel.hotelId,
+              hotelName: hotel.name,
+              rating: hotel.averageRating,
+            ),
+          ),
+        );
+      },
       child: Container(
-        margin: const EdgeInsets.only(bottom: 20),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
+              color: Colors.black.withOpacity(0.04),
               blurRadius: 15,
-              offset: const Offset(0, 5),
+              offset: const Offset(0, 6),
             ),
           ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(24),
-              ),
-              child: SizedBox(
-                height: 180,
-                width: double.infinity,
-                child: hotel.imageUrl != null && hotel.imageUrl!.isNotEmpty
-                    ? Image.network(
-                        hotel.imageUrl!,
+            // Phần 1: Hình ảnh
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(20),
+                    topRight: Radius.circular(20),
+                  ),
+                  child: Image.network(
+                    displayImage,
+                    height: 180,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      // Nếu link ảnh từ DB bị chết (404), nó sẽ tự động render ảnh này thay vì báo lỗi đỏ
+                      return Image.network(
+                        defaultHotelImage,
+                        height: 180,
+                        width: double.infinity,
                         fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) =>
-                            _imageFallback(),
-                      )
-                    : _imageFallback(),
-              ),
+                      );
+                    },
+                  ),
+                ),
+                // Nút thả tim (Favorite)
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.favorite_border_rounded,
+                      color: Colors.redAccent,
+                      size: 20,
+                    ),
+                  ),
+                ),
+                // Badge Đánh giá
+                Positioned(
+                  top: 12,
+                  left: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.6),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.white.withOpacity(0.2)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.star_rounded,
+                          color: Colors.amber,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${hotel.averageRating ?? 4.5}',
+                          style: GoogleFonts.dmSans(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
+
+            // Phần 2: Nội dung chi tiết
             Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -545,83 +620,96 @@ class _HomeScreenView extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          hotel.name,
-                          style: GoogleFonts.playfairDisplay(
+                          hotel.name ?? 'Tên khách sạn',
+                          style: GoogleFonts.dmSans(
                             fontSize: 18,
-                            fontWeight: FontWeight.w700,
+                            fontWeight: FontWeight.bold,
                             color: _kTextPrimary,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      _buildStarRow(hotel.averageRating ?? 0),
                     ],
                   ),
                   const SizedBox(height: 8),
-                  if (hotel.province != null)
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.location_on,
-                          size: 14,
-                          color: Colors.grey,
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            '${hotel.ward ?? ''}${hotel.ward != null && hotel.province != null ? ', ' : ''}${hotel.province ?? ''}',
-                            style: GoogleFonts.dmSans(
-                              color: _kTextSec,
-                              fontSize: 13,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: Divider(height: 1, color: Color(0xFFF0F0F0)),
-                  ),
                   Row(
                     children: [
                       const Icon(
-                        Icons.meeting_room_outlined,
+                        Icons.location_on_rounded,
+                        color: _kGreen,
                         size: 16,
-                        color: _kTextSec,
                       ),
-                      const SizedBox(width: 6),
-                      Text(
-                        '${hotel.roomCount} phòng',
-                        style: GoogleFonts.dmSans(
-                          color: _kTextSec,
-                          fontSize: 13,
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          hotel.province ?? 'Địa chỉ',
+                          style: GoogleFonts.dmSans(
+                            fontSize: 14,
+                            color: _kTextSec,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      const Spacer(),
-                      if (hotel.avgRoomPrice != null)
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              'Chỉ từ',
-                              style: GoogleFonts.dmSans(
-                                fontSize: 11,
-                                color: _kTextSec,
-                              ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const Divider(color: Color(0xFFEEEEEE), height: 1),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Giá từ',
+                            style: GoogleFonts.dmSans(
+                              fontSize: 12,
+                              color: _kTextSec,
                             ),
-                            Text(
-                              '${_money(hotel.avgRoomPrice!)} đ',
-                              style: GoogleFonts.dmSans(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: _kGreen,
+                          ),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                '${_formatCurrency(hotel.avgRoomPrice ?? 500000.0)}₫',
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w900,
+                                  color: _kGreen,
+                                ),
                               ),
-                            ),
-                          ],
+                              Text(
+                                ' /đêm',
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 12,
+                                  color: _kTextSec,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
                         ),
+                        decoration: BoxDecoration(
+                          color: _kGreen,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          'Đặt ngay',
+                          style: GoogleFonts.dmSans(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -632,53 +720,14 @@ class _HomeScreenView extends StatelessWidget {
       ),
     );
   }
-
-  Widget _imageFallback() => Container(
-    color: const Color(0xFFE8F5E9),
-    child: const Center(
-      child: Icon(Icons.hotel_rounded, size: 48, color: _kGreen),
-    ),
-  );
-
-  Widget _buildStarRow(double rating) {
-    final clamped = rating.clamp(0, 5);
-    final filled = clamped.round();
-
-    return Row(
-      children: [
-        ...List.generate(5, (index) {
-          final isFilled = index < filled;
-          return Icon(
-            isFilled ? Icons.star_rounded : Icons.star_border_rounded,
-            color: isFilled ? Colors.amber : const Color(0xFFB0B8B3),
-            size: 16,
-          );
-        }),
-        const SizedBox(width: 6),
-        Text(
-          clamped.toStringAsFixed(1),
-          style: GoogleFonts.dmSans(
-            fontWeight: FontWeight.bold,
-            color: Colors.orange[800],
-            fontSize: 13,
-          ),
-        ),
-      ],
-    );
-  }
-
-  String _money(double v) => v
-      .toStringAsFixed(0)
-      .replaceAllMapped(
-        RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-        (m) => '${m[1]}.',
-      );
 }
 
+// --- WIDGET: CHIP PROVINCE ---
 class _ProvinceChip extends StatelessWidget {
   final String label;
   final bool isSelected;
   final VoidCallback onTap;
+
   const _ProvinceChip({
     required this.label,
     required this.isSelected,
@@ -696,13 +745,13 @@ class _ProvinceChip extends StatelessWidget {
           color: isSelected ? _kGreen : Colors.white,
           borderRadius: BorderRadius.circular(999),
           border: Border.all(
-            color: isSelected ? _kGreen : Colors.grey[300]!,
+            color: isSelected ? _kGreen : Colors.grey.shade300,
             width: 1,
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: _kGreen.withValues(alpha: 0.3),
+                    color: _kGreen.withOpacity(0.3),
                     blurRadius: 8,
                     offset: const Offset(0, 3),
                   ),

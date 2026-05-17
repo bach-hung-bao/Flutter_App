@@ -1,14 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../injection.dart' as di;
 import '../bloc/favorite_bloc.dart';
 import '../bloc/favorite_event.dart';
 import '../bloc/favorite_state.dart';
 import '../../../hotel/domain/entities/hotel_entity.dart';
-import '../../../shell/presentation/screens/main_nav_screen.dart';
+import '../../../hotel/presentation/screens/hotel_detail_screen.dart';
 import '../../../../core/constants/app_colors.dart';
+
+// --- CONSTANTS ĐỒNG BỘ VỚI HOME ---
+const _kGreen = AppColors.greenPrimary;
+const _kSurface = Color(0xFFF8FAFC);
+const _kTextPrimary = Color(0xFF1E293B);
+const _kTextSec = Color(0xFF64748B);
 
 class FavoritesScreen extends StatelessWidget {
   const FavoritesScreen({super.key});
@@ -28,8 +35,10 @@ class _FavoritesScreenView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.scaffoldBg,
+      backgroundColor: _kSurface,
       appBar: AppBar(
+        elevation: 0,
+        centerTitle: true,
         flexibleSpace: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
@@ -40,21 +49,11 @@ class _FavoritesScreenView extends StatelessWidget {
           ),
         ),
         title: Text(
-          'Yêu thích',
-          style: GoogleFonts.playfairDisplay(
+          'Khách sạn yêu thích',
+          style: GoogleFonts.dmSans(
             color: Colors.white,
-            fontSize: 24,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        centerTitle: false,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
-          onPressed: () => Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (_) => const MainNavScreen()),
-            (route) => false,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
           ),
         ),
       ),
@@ -65,56 +64,51 @@ class _FavoritesScreenView extends StatelessWidget {
               SnackBar(
                 content: Text(state.message),
                 backgroundColor: Colors.redAccent,
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
             );
           }
         },
         builder: (context, state) {
-          if (state is FavoriteLoading || state is FavoriteInitial) {
-            return const Center(child: CircularProgressIndicator(color: AppColors.greenMedium));
+          if (state is FavoriteLoading) {
+            return const Center(
+              child: CircularProgressIndicator(color: _kGreen),
+            );
           }
 
-          // ✅ FIX: Auth error → hiển thị lỗi thật thay vì empty state
           if (state is FavoriteError && state.isAuthError) {
-            return _buildAuthError(context);
+            return _buildLoginRequired(context);
           }
 
           if (state is FavoriteLoaded) {
             if (state.favorites.isEmpty) {
-              return _buildEmpty(context);
+              return _buildEmptyState(context);
             }
 
             return RefreshIndicator(
-              color: AppColors.greenMedium,
-              onRefresh: () async {
-                context.read<FavoriteBloc>().add(LoadFavoritesEvent());
-              },
-              child: GridView.builder(
-                physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-                padding: const EdgeInsets.all(16),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
-                  childAspectRatio: 0.72,
-                ),
+              onRefresh: () async =>
+                  context.read<FavoriteBloc>().add(LoadFavoritesEvent()),
+              color: _kGreen,
+              child: ListView.builder(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+                physics: const BouncingScrollPhysics(),
                 itemCount: state.favorites.length,
-                itemBuilder: (_, i) => _HotelFavCard(
-                  hotel: state.favorites[i],
-                  // ✅ FIX: Truyền đúng hotelId từ item hiện tại, không dùng state.favorites[i].id trong closure
-                  onRemove: () {
-                    final hotelId = state.favorites[i].id;
-                    context.read<FavoriteBloc>().add(ToggleFavoriteInListEvent(hotelId));
-                  },
-                ),
+                itemBuilder: (context, index) {
+                  final hotel = state.favorites[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 20),
+                    child: _FavoriteHotelCard(
+                      hotel: hotel,
+                      index: index,
+                      onRemove: () {
+                        context.read<FavoriteBloc>().add(
+                          ToggleFavoriteInListEvent(hotel.id!),
+                        );
+                      },
+                    ),
+                  );
+                },
               ),
             );
-          }
-
-          if (state is FavoriteError) {
-            return _buildError(context);
           }
 
           return const SizedBox.shrink();
@@ -123,266 +117,299 @@ class _FavoritesScreenView extends StatelessWidget {
     );
   }
 
-  // ✅ Thêm state cho lỗi auth (chưa đăng nhập / token hết hạn)
-  Widget _buildAuthError(BuildContext context) => Center(
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
+  // --- GIAO DIỆN KHI TRỐNG ---
+  Widget _buildEmptyState(BuildContext context) {
+    return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(30),
             decoration: BoxDecoration(
-              color: Colors.orange.withValues(alpha: 0.1),
+              color: _kGreen.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.lock_outline_rounded, size: 56, color: Colors.orange),
+            child: Icon(
+              Icons.favorite_border_rounded,
+              size: 80,
+              color: _kGreen.withOpacity(0.5),
+            ),
           ),
           const SizedBox(height: 24),
           Text(
-            'Cần đăng nhập',
-            style: GoogleFonts.playfairDisplay(
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-              color: const Color(0xFF172B24),
+            'Chưa có yêu thích',
+            style: GoogleFonts.dmSans(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: _kTextPrimary,
             ),
           ),
           const SizedBox(height: 12),
-          Text(
-            'Vui lòng đăng nhập để xem danh sách yêu thích của bạn.',
-            style: GoogleFonts.dmSans(fontSize: 15, color: const Color(0xFF6B7B75), height: 1.5),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 32),
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.greenMedium,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              ),
-              onPressed: () => context.read<FavoriteBloc>().add(LoadFavoritesEvent()),
-              child: Text('Thử lại', style: GoogleFonts.dmSans(fontSize: 16, fontWeight: FontWeight.bold)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40),
+            child: Text(
+              'Hãy thả tim những khách sạn bạn ưng ý để xem lại chúng tại đây nhé!',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.dmSans(fontSize: 15, color: _kTextSec),
             ),
           ),
         ],
       ),
-    ),
-  );
+    );
+  }
 
-  Widget _buildError(BuildContext context) => Center(
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.redAccent.withValues(alpha: 0.1),
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(Icons.wifi_off_rounded, size: 48, color: Colors.redAccent),
-        ),
-        const SizedBox(height: 16),
-        Text(
-          'Lỗi kết nối',
-          style: GoogleFonts.playfairDisplay(
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
-            color: const Color(0xFF172B24),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Không thể tải dữ liệu, vui lòng thử lại.',
-          style: GoogleFonts.dmSans(fontSize: 15, color: Colors.grey[600]),
-        ),
-        const SizedBox(height: 24),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.greenMedium,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-          ),
-          onPressed: () => context.read<FavoriteBloc>().add(LoadFavoritesEvent()),
-          child: Text('Thử lại', style: GoogleFonts.dmSans(color: Colors.white, fontWeight: FontWeight.bold)),
-        ),
-      ],
-    ),
-  );
-
-  Widget _buildEmpty(BuildContext context) => Center(
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 140,
-            height: 140,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppColors.greenMedium.withValues(alpha: 0.08),
+  // --- GIAO DIỆN CHƯA ĐĂNG NHẬP ---
+  Widget _buildLoginRequired(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.lock_outline_rounded,
+              size: 80,
+              color: Colors.grey,
             ),
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.greenMedium.withValues(alpha: 0.15),
-                ),
-                child: const Icon(Icons.favorite_border_rounded, size: 56, color: AppColors.greenMedium),
+            const SizedBox(height: 20),
+            Text(
+              'Yêu cầu đăng nhập',
+              style: GoogleFonts.dmSans(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
               ),
             ),
-          ),
-          const SizedBox(height: 32),
-          Text(
-            'Chưa có yêu thích nào',
-            style: GoogleFonts.playfairDisplay(
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-              color: const Color(0xFF172B24),
+            const SizedBox(height: 12),
+            const Text(
+              'Vui lòng đăng nhập để xem danh sách khách sạn yêu thích của bạn.',
+              textAlign: TextAlign.center,
             ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Những khách sạn bạn yêu thích sẽ xuất hiện ở đây. Hãy khám phá và lưu lại những địa điểm tuyệt vời nhé!',
-            style: GoogleFonts.dmSans(fontSize: 15, color: const Color(0xFF6B7B75), height: 1.5),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 40),
-          SizedBox(
-            width: double.infinity,
-            height: 54,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.greenMedium,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-              ),
-              onPressed: () {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (_) => const MainNavScreen()),
-                  (route) => false,
-                );
-              },
-              child: Text(
-                'Khám phá ngay',
-                style: GoogleFonts.dmSans(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 0.2),
-              ),
-            ),
-          ),
-          const SizedBox(height: 60),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
-class _HotelFavCard extends StatelessWidget {
+// --- WIDGET THẺ KHÁCH SẠN (ĐỒNG BỘ 100% VỚI HOME) ---
+class _FavoriteHotelCard extends StatelessWidget {
   final HotelEntity hotel;
+  final int index;
   final VoidCallback onRemove;
 
-  const _HotelFavCard({required this.hotel, required this.onRemove});
+  const _FavoriteHotelCard({
+    required this.hotel,
+    required this.index,
+    required this.onRemove,
+  });
+
+  String _formatCurrency(double amount) {
+    return NumberFormat.currency(locale: 'vi_VN', symbol: '₫').format(amount);
+  }
 
   @override
   Widget build(BuildContext context) {
+    // Danh sách ảnh dự phòng giống màn Home
+    final List<String> networkFallbacks = [
+      'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1582719508461-905c673771fd?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1542314831-c6a4d14b837?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1551882547-ff40c0d139f3?auto=format&fit=crop&w=800&q=80',
+    ];
+
+    // Lấy ảnh từ backend, nếu không có thì lấy ảnh dự phòng
+    final String displayImage =
+        (hotel.imageUrl != null && hotel.imageUrl!.isNotEmpty)
+        ? hotel.imageUrl!
+        : networkFallbacks[index % networkFallbacks.length];
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withOpacity(0.04),
             blurRadius: 15,
-            offset: const Offset(0, 5),
+            offset: const Offset(0, 8),
           ),
         ],
       ),
-      child: Stack(
-        children: [
-          Column(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: InkWell(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) =>
+                  HotelDetailScreen(hotelId: hotel.id, hotelName: hotel.name),
+            ),
+          ),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                child: Container(
-                  height: 110,
-                  width: double.infinity,
-                  color: const Color(0xFFE8F5E9),
-                  child: const Icon(Icons.hotel, size: 40, color: Color(0xFF1A8F5C)),
-                ),
+              // 1. PHẦN ẢNH & NÚT XOÁ
+              Stack(
+                children: [
+                  Image.network(
+                    displayImage,
+                    height: 200,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Image.network(
+                      networkFallbacks[index % networkFallbacks.length],
+                      height: 200,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  // Nút bỏ yêu thích
+                  Positioned(
+                    top: 15,
+                    right: 15,
+                    child: GestureDetector(
+                      onTap: onRemove,
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.favorite,
+                          color: Colors.redAccent,
+                          size: 22,
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Rating Badge
+                  Positioned(
+                    bottom: 15,
+                    left: 15,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.star_rounded,
+                            color: Colors.amber,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '4.8', // Giả định rating, bạn có thể thay bằng hotel.rating nếu có
+                            style: GoogleFonts.dmSans(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
+
+              // 2. PHẦN THÔNG TIN
               Padding(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       hotel.name,
                       style: GoogleFonts.dmSans(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
-                        color: const Color(0xFF1A2B24),
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: _kTextPrimary,
                       ),
-                      maxLines: 2,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    if (hotel.street != null) ...[
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          const Icon(Icons.location_on, size: 14, color: Colors.grey),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              hotel.street!,
-                              style: GoogleFonts.dmSans(color: Colors.grey, fontSize: 13),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.location_on_rounded,
+                          color: _kGreen,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            hotel.street ?? 'Chua cap nhat dia chi',
+                            style: GoogleFonts.dmSans(
+                              color: _kTextSec,
+                              fontSize: 14,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    const Divider(height: 1),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Giá chỉ từ',
+                              style: GoogleFonts.dmSans(
+                                fontSize: 12,
+                                color: _kTextSec,
+                              ),
+                            ),
+                            Text(
+                              _formatCurrency(
+                                1200000,
+                              ), // Thay bằng giá thực tế nếu hotel có trường price
+                              style: GoogleFonts.dmSans(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: _kGreen,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _kGreen,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            'Xem ngay',
+                            style: GoogleFonts.dmSans(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                        ],
-                      ),
-                    ],
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
             ],
           ),
-          // ✅ FIX: Dùng Material + InkWell thay GestureDetector để đảm bảo onTap hoạt động
-          Positioned(
-            top: 10,
-            right: 10,
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: onRemove,
-                borderRadius: BorderRadius.circular(20),
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.9),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.1),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(Icons.favorite, color: Colors.redAccent, size: 20),
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

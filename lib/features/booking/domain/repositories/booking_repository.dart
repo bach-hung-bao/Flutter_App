@@ -23,4 +23,5 @@ abstract class BookingRepository {
   Future<BookingEntity?> cancelBooking(int id, String reason);
   Future<List<RoomEntity>> getRoomsByHotel(int hotelId);
   Future<List<TimeSlotEntity>> getTimeSlotsByRoom(int roomId);
+  Future<BookingEntity?> updateBookingStatus(int id, int status);
 }

@@ -53,3 +53,16 @@ class LoadTimeSlotsForRoomEvent extends BookingEvent {
   final int roomId;
   LoadTimeSlotsForRoomEvent(this.roomId);
 }
+
+class UpdateBookingStatusEvent extends BookingEvent {
+  final int bookingId;
+  final int newStatus;
+  final String? currentStatusFilter;
+
+  UpdateBookingStatusEvent(
+    this.bookingId,
+    this.newStatus, {
+    this.currentStatusFilter,
+  });
+}
+

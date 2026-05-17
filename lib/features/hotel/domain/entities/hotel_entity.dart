@@ -1,4 +1,3 @@
-/// Pure domain entity for a Hotel – no JSON, no Flutter deps
 class HotelEntity {
   final int id;
   final int ownerId;
@@ -7,10 +6,11 @@ class HotelEntity {
   final String? street;
   final String? phone;
   final String? description;
-  final int status; // 0=inactive, 1=active
+  final int status;
   final bool isDeleted;
   final DateTime createdAt;
   final DateTime? updatedAt;
+  final String? imageUrl; // ĐÃ THÊM BIẾN ẢNH VÀO ĐÂY
 
   const HotelEntity({
     required this.id,
@@ -24,7 +24,6 @@ class HotelEntity {
     required this.isDeleted,
     required this.createdAt,
     this.updatedAt,
+    this.imageUrl, // ĐÃ THÊM VÀO CONSTRUCTOR
   });
-
-  bool get isActive => status == 1;
 }

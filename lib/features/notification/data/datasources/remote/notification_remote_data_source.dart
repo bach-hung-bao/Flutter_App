@@ -14,7 +14,7 @@ class NotificationRemoteDataSource {
   }) async {
     final token = await _authStorage.getAccessToken();
     final response = await _client.get(
-      '/api/notifications',
+      '/api/notifications/my',
       query: {'pageIndex': pageIndex, 'pageSize': pageSize},
       accessToken: token,
     );

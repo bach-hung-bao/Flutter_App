@@ -5,6 +5,7 @@ abstract class HomeRepository {
   Future<List<HotelRecommendationEntity>> getSmartRecommendations({
     String? province,
     int topK = 10,
+    int pageIndex = 1,
     String? accessToken,
   });
 

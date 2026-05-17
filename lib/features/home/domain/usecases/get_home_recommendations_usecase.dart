@@ -8,11 +8,13 @@ class GetHomeRecommendationsUseCase {
   Future<List<HotelRecommendationEntity>> execute({
     String? province,
     int topK = 10,
+    int pageIndex = 1,
     String? accessToken,
   }) {
     return _repository.getSmartRecommendations(
       province: province,
       topK: topK,
+      pageIndex: pageIndex,
       accessToken: accessToken,
     );
   }

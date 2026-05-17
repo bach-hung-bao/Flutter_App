@@ -5,6 +5,7 @@ import '../../domain/usecases/create_booking_usecase.dart';
 import '../../domain/usecases/get_my_bookings_usecase.dart';
 import '../../domain/usecases/get_rooms_usecase.dart';
 import '../../domain/usecases/get_time_slots_usecase.dart';
+import '../../domain/usecases/update_booking_status_usecase.dart';
 import '../../domain/entities/room_entity.dart';
 import '../../domain/entities/time_slot_entity.dart';
 
@@ -17,6 +18,7 @@ class BookingBloc extends Bloc<BookingEvent, BookingState> {
   final CreateBookingUseCase createBooking;
   final GetRoomsByHotelIdUseCase getRoomsByHotel;
   final GetTimeSlotsByRoomIdUseCase getTimeSlotsByRoom;
+  final UpdateBookingStatusUseCase updateBookingStatus;
 
   BookingBloc({
     required this.getMyBookings,
@@ -24,12 +26,14 @@ class BookingBloc extends Bloc<BookingEvent, BookingState> {
     required this.createBooking,
     required this.getRoomsByHotel,
     required this.getTimeSlotsByRoom,
+    required this.updateBookingStatus,
   }) : super(BookingInitial()) {
     on<LoadMyBookingsEvent>(_onLoadMyBookings);
     on<CancelBookingEvent>(_onCancelBooking);
     on<CreateBookingEvent>(_onCreateBooking);
     on<LoadRoomsForHotelEvent>(_onLoadRoomsForHotel);
     on<LoadTimeSlotsForRoomEvent>(_onLoadTimeSlotsForRoom);
+    on<UpdateBookingStatusEvent>(_onUpdateBookingStatus);
   }
 
   Future<void> _onLoadMyBookings(
@@ -137,6 +141,43 @@ class BookingBloc extends Bloc<BookingEvent, BookingState> {
       emit(TimeSlotsLoaded(timeSlots));
     } catch (e) {
       emit(TimeSlotsLoaded(const []));
+    }
+  }
+
+  Future<void> _onUpdateBookingStatus(
+    UpdateBookingStatusEvent event,
+    Emitter<BookingState> emit,
+  ) async {
+    final currentState = state;
+    if (currentState is MyBookingsLoaded) {
+      emit(currentState.copyWith(isCancelling: true));
+      try {
+        final result = await updateBookingStatus.execute(
+          event.bookingId,
+          event.newStatus,
+        );
+        if (result != null) {
+          // Reload the list
+          final (bookings, count) = await getMyBookings.execute(
+            pageIndex: 1,
+            pageSize: 50,
+          );
+          emit(
+            MyBookingsLoaded(
+              bookings: bookings,
+              totalCount: count,
+              statusFilter: event.currentStatusFilter,
+              isCancelling: false,
+            ),
+          );
+        } else {
+          emit(BookingError("Không thể cập nhật trạng thái đặt phòng."));
+          emit(currentState.copyWith(isCancelling: false));
+        }
+      } catch (e) {
+        emit(BookingError(e.toString()));
+        emit(currentState.copyWith(isCancelling: false));
+      }
     }
   }
 }
